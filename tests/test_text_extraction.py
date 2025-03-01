@@ -11,7 +11,7 @@ import pytest
 
 from pypdf import PdfReader, mult
 from pypdf._text_extraction import set_custom_rtl
-from pypdf.errors import ParseError
+from pypdf.errors import ParseError, PdfReadError
 
 from . import get_data_from_url
 
@@ -21,7 +21,7 @@ RESOURCE_ROOT = PROJECT_ROOT / "resources"
 SAMPLE_ROOT = PROJECT_ROOT / "sample-files"
 
 
-@pytest.mark.samples()
+@pytest.mark.samples
 @pytest.mark.parametrize(("visitor_text"), [None, lambda a, b, c, d, e: None])
 def test_multi_language(visitor_text):
     reader = PdfReader(RESOURCE_ROOT / "multilang.pdf")
@@ -108,7 +108,7 @@ def test_visitor_text_matrices(file_name, constraints):
 
 
 @pytest.mark.xfail(reason="known whitespace issue #2336")
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_issue_2336():
     name = "Pesquisa-de-Precos-Combustiveis-novembro-2023.pdf"
     reader = PdfReader(BytesIO(get_data_from_url(name=name)))
@@ -128,10 +128,25 @@ def test_layout_mode_font_class_to_dict():
         "space_width": 8,
         "subtype": "foo",
         "width_map": {},
+        "interpretable": True,
     }
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
+@patch("pypdf._text_extraction._layout_mode._fixed_width_page.logger_warning")
+def test_uninterpretable_type3_font(mock_logger_warning):
+    url = "https://github.com/user-attachments/files/18551904/UninterpretableType3Font.pdf"
+    name = "UninterpretableType3Font.pdf"
+    reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
+    page = reader.pages[0]
+    assert page.extract_text(extraction_mode="layout") == ""
+    mock_logger_warning.assert_called_with(
+        "PDF contains an uninterpretable font. Output will be incomplete.",
+        "pypdf._text_extraction._layout_mode._fixed_width_page"
+    )
+
+
+@pytest.mark.enable_socket
 def test_layout_mode_epic_page_fonts():
     url = "https://github.com/py-pdf/pypdf/files/13836944/Epic.Page.PDF"
     name = "Epic Page.PDF"
@@ -147,7 +162,7 @@ def test_layout_mode_uncommon_operators():
     assert expected == reader.pages[0].extract_text(extraction_mode="layout")
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_layout_mode_type0_font_widths():
     # Cover both the 'int int int' and 'int [int int ...]' formats for Type0
     # /DescendantFonts /W array entries.
@@ -160,12 +175,12 @@ def test_layout_mode_type0_font_widths():
     assert expected == reader.pages[0].extract_text(extraction_mode="layout")
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_layout_mode_indirect_sequence_font_widths():
     # Cover the situation where the sequence for font widths is an IndirectObject
     # ref https://github.com/py-pdf/pypdf/pull/2788
     url = "https://github.com/user-attachments/files/16491621/2788_example.pdf"
-    name ="2788_example.pdf"
+    name = "2788_example.pdf"
     reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
     assert reader.pages[0].extract_text(extraction_mode="layout") == ""
     url = "https://github.com/user-attachments/files/16491619/2788_example_malformed.pdf"
@@ -175,8 +190,10 @@ def test_layout_mode_indirect_sequence_font_widths():
         reader.pages[0].extract_text(extraction_mode="layout")
         assert str(exc.value).startswith("Invalid font width definition")
 
+
 def dummy_visitor_text(text, ctm, tm, fd, fs):
     pass
+
 
 @patch("pypdf._page.logger_warning")
 def test_layout_mode_warnings(mock_logger_warning):
@@ -191,7 +208,7 @@ def test_layout_mode_warnings(mock_logger_warning):
     )
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_space_with_one_unit_smaller_than_font_width():
     """Tests for #1328"""
     url = "https://github.com/py-pdf/pypdf/files/9498481/0004.pdf"
@@ -202,7 +219,7 @@ def test_space_with_one_unit_smaller_than_font_width():
     assert "Reporting crude oil leak.\n" in extracted
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_space_position_calculation():
     """Tests for #1153"""
     url = "https://github.com/py-pdf/pypdf/files/9164743/file-0.pdf"
@@ -219,3 +236,113 @@ def test_text_leading_height_unit():
     page = reader.pages[0]
     extracted = page.extract_text()
     assert "Something[cited]\n" in extracted
+
+
+def test_layout_mode_space_vertically_font_height_weight():
+    """Tests layout mode with vertical space and font height weight (issue #2915)"""
+    with open(RESOURCE_ROOT / "crazyones.pdf", "rb") as inputfile:
+        # Load PDF file from file
+        reader = PdfReader(inputfile)
+        page = reader.pages[0]
+
+        # Normal behaviour
+        with open(RESOURCE_ROOT / "crazyones_layout_vertical_space.txt", "rb") as pdftext_file:
+            pdftext = pdftext_file.read()
+
+        text = page.extract_text(extraction_mode="layout", layout_mode_space_vertically=True).encode("utf-8")
+
+        # Compare the text of the PDF to a known source
+        for expected_line, actual_line in zip(text.splitlines(), pdftext.splitlines()):
+            assert expected_line == actual_line
+
+        pdftext = pdftext.replace(b"\r\n", b"\n")  # fix for windows
+        assert text == pdftext, (
+            "PDF extracted text differs from expected value.\n\n"
+            "Expected:\n\n%r\n\nExtracted:\n\n%r\n\n" % (pdftext, text)
+        )
+
+        # Blank lines are added to truly separate paragraphs
+        with open(RESOURCE_ROOT / "crazyones_layout_vertical_space_font_height_weight.txt", "rb") as pdftext_file:
+            pdftext = pdftext_file.read()
+
+        text = page.extract_text(extraction_mode="layout", layout_mode_space_vertically=True,
+                                 layout_mode_font_height_weight=0.85).encode("utf-8")
+
+        # Compare the text of the PDF to a known source
+        for expected_line, actual_line in zip(text.splitlines(), pdftext.splitlines()):
+            assert expected_line == actual_line
+
+        pdftext = pdftext.replace(b"\r\n", b"\n")  # fix for windows
+        assert text == pdftext, (
+                "PDF extracted text differs from expected value.\n\n"
+                "Expected:\n\n%r\n\nExtracted:\n\n%r\n\n" % (pdftext, text)
+        )
+
+
+@pytest.mark.enable_socket
+def test_infinite_loop_arrays():
+    """Tests for #2928"""
+    url = "https://github.com/user-attachments/files/17576546/arrayabruptending.pdf"
+    name = "arrayabruptending.pdf"
+    reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
+
+    page = reader.pages[0]
+    extracted = page.extract_text()
+    assert "RNA structure comparison" in extracted
+
+
+@pytest.mark.enable_socket
+def test_content_stream_is_dictionary_object(caplog):
+    """Tests for #2995."""
+    url = "https://github.com/user-attachments/files/18049322/6fa5fd46-5f98-4a67-800d-5e2362b0164f.pdf"
+    name = "iss2995.pdf"
+    data = get_data_from_url(url, name=name)
+
+    reader = PdfReader(BytesIO(data))
+    page = reader.pages[0]
+    assert "\nYours faithfully   \n" in page.extract_text()
+    assert "Expected StreamObject, got DictionaryObject instead. Data might be wrong." in caplog.text
+    caplog.clear()
+
+    reader = PdfReader(BytesIO(data), strict=True)
+    page = reader.pages[0]
+    with pytest.raises(PdfReadError) as exception:
+        page.extract_text()
+    assert (
+        "Invalid Elementary Object starting with b\\'\\\\x18\\' @3557: b\\'ateDecode/Length 629\\\\x18ck["
+        in exception.value.args[0]
+    )
+
+
+@pytest.mark.enable_socket
+def test_tz_with_no_operands():
+    """Tests for #2975"""
+    url = "https://github.com/user-attachments/files/17974120/9E5E080E-C8DB-4A6B-822B-9A67DC04E526-120438.pdf"
+    name = "iss2975.pdf"
+    data = get_data_from_url(url, name=name)
+
+    reader = PdfReader(BytesIO(data))
+    page = reader.pages[1]
+    assert "\nThankyouforyourattentiontothismatter.\n" in page.extract_text()
+
+
+@pytest.mark.enable_socket
+def test_iss3060():
+    """Test for not throwing 'font not set: is PDF missing a Tf operator'"""
+    url = "https://github.com/user-attachments/files/18482531/test-anon.pdf"
+    name = "iss3060.pdf"
+    reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
+    # pypdf.errors.PdfReadError: font not set: is PDF missing a Tf operator?
+    txt = reader.pages[0].extract_text(extraction_mode="layout")
+    assert txt.startswith(" *******")
+
+
+@pytest.mark.enable_socket
+def test_iss3074():
+    """Test for not throwing 'ZeroDivisionError: float division by zero'"""
+    url = "https://github.com/user-attachments/files/18533211/test-anon.pdf"
+    name = "iss3074.pdf"
+    reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
+    # pypdf.errors.PdfReadError: ZeroDivisionError: float division by zero
+    txt = reader.pages[0].extract_text(extraction_mode="layout")
+    assert txt.strip().startswith("AAAAAA")

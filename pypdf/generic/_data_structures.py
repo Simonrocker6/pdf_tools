@@ -154,6 +154,7 @@ class ArrayObject(List[Any], PdfObject):
 
         Returns:
             Hash considering type and value.
+
         """
         return hash((self.__class__, tuple(x.hash_bin() for x in self)))
 
@@ -191,6 +192,7 @@ class ArrayObject(List[Any], PdfObject):
 
         Returns:
             ArrayObject with all elements
+
         """
         temp = ArrayObject(self)
         temp.extend(self._to_lst(lst))
@@ -206,6 +208,7 @@ class ArrayObject(List[Any], PdfObject):
             if str is passed it will be converted into TextStringObject
             or NameObject (if starting with "/")
             if bytes is passed it will be converted into ByteStringObject
+
         """
         self.extend(self._to_lst(lst))
         return self
@@ -248,6 +251,8 @@ class ArrayObject(List[Any], PdfObject):
             tok = stream.read(1)
             while tok.isspace():
                 tok = stream.read(1)
+            if tok == b"":
+                break
             if tok == b"%":
                 stream.seek(-1, 1)
                 skip_over_comment(stream)
@@ -318,6 +323,7 @@ class DictionaryObject(Dict[Any, Any], PdfObject):
             pdf_dest:
             force_duplicate:
             ignore_fields:
+
         """
         # first we remove for the ignore_fields
         # that are for a limited number of levels
@@ -421,6 +427,7 @@ class DictionaryObject(Dict[Any, Any], PdfObject):
 
         Returns:
             Hash considering type and value.
+
         """
         return hash(
             (self.__class__, tuple(((k, v.hash_bin()) for k, v in self.items())))
@@ -441,13 +448,14 @@ class DictionaryObject(Dict[Any, Any], PdfObject):
 
         Returns:
             Current key or inherited one, otherwise default value.
+
         """
         if key in self:
             return self[key]
         try:
             if "/Parent" not in self:
                 return default
-            raise KeyError("not present")
+            raise KeyError("Not present")
         except KeyError:
             return cast("DictionaryObject", self["/Parent"].get_object()).get_inherited(
                 key, default
@@ -455,16 +463,16 @@ class DictionaryObject(Dict[Any, Any], PdfObject):
 
     def __setitem__(self, key: Any, value: Any) -> Any:
         if not isinstance(key, PdfObject):
-            raise ValueError("key must be PdfObject")
+            raise ValueError("Key must be a PdfObject")
         if not isinstance(value, PdfObject):
-            raise ValueError("value must be PdfObject")
+            raise ValueError("Value must be a PdfObject")
         return dict.__setitem__(self, key, value)
 
     def setdefault(self, key: Any, value: Optional[Any] = None) -> Any:
         if not isinstance(key, PdfObject):
-            raise ValueError("key must be PdfObject")
+            raise ValueError("Key must be a PdfObject")
         if not isinstance(value, PdfObject):
-            raise ValueError("value must be PdfObject")
+            raise ValueError("Value must be a PdfObject")
         return dict.setdefault(self, key, value)  # type: ignore
 
     def __getitem__(self, key: Any) -> PdfObject:
@@ -482,6 +490,7 @@ class DictionaryObject(Dict[Any, Any], PdfObject):
           Returns a :class:`~pypdf.xmp.XmpInformation` instance
           that can be used to access XMP metadata from the document. Can also
           return None if no metadata was found on the document root.
+
         """
         from ..xmp import XmpInformation
 
@@ -525,7 +534,9 @@ class DictionaryObject(Dict[Any, Any], PdfObject):
             for gen in rem_gens:
                 loc = pdf.xref[gen]
                 try:
-                    out = min(out, min([x for x in loc.values() if p < x <= p1]))
+                    values = [x for x in loc.values() if p < x <= p1]
+                    if values:
+                        out = min(out, *values)
                 except ValueError:
                     pass
             return out
@@ -726,7 +737,7 @@ class TreeObject(DictionaryObject):
         assert parent is not None, "mypy"
         parent = cast("TreeObject", parent.get_object())
         #  BooleanObject requires comparison with == not is
-        opn = parent.get("/%is_open%", True) == True  # noqa
+        opn = parent.get("/%is_open%", True) == True  # noqa: E712
         c = cast(int, parent.get("/Count", 0))
         if c < 0:
             c = abs(c)
@@ -797,6 +808,7 @@ class TreeObject(DictionaryObject):
             prev_ref:
             cur:
             last:
+
         """
         next_ref = cur.get(NameObject("/Next"), None)
         if prev is None:
@@ -893,6 +905,7 @@ def _reset_node_tree_relationship(child_obj: Any) -> None:
 
     Args:
         child_obj:
+
     """
     del child_obj[NameObject("/Parent")]
     if NameObject("/Next") in child_obj:
@@ -947,6 +960,7 @@ class StreamObject(DictionaryObject):
             pdf_dest:
             force_duplicate:
             ignore_fields:
+
         """
         self._data = cast("StreamObject", src)._data
         try:
@@ -968,6 +982,7 @@ class StreamObject(DictionaryObject):
 
         Returns:
             Hash considering type and value.
+
         """
         # use of _data to prevent errors on non decoded stream such as JBIG2
         return hash((super().hash_bin(), self._data))
@@ -1062,6 +1077,7 @@ class StreamObject(DictionaryObject):
                 errors during decoding will be reported
                 It is recommended to catch exceptions to prevent
                 stops in your program.
+
         """
         from ..filters import _xobj_to_image
 
@@ -1109,7 +1125,7 @@ class EncodedStreamObject(StreamObject):
 
         if self.get(SA.FILTER, "") in (FT.FLATE_DECODE, [FT.FLATE_DECODE]):
             if not isinstance(data, bytes):
-                raise TypeError("data must be bytes")
+                raise TypeError("Data must be bytes")
             if self.decoded_self is None:
                 self.get_data()  # to create self.decoded_self
             assert self.decoded_self is not None, "mypy"
@@ -1164,7 +1180,18 @@ class ContentStream(DecodedStreamObject):
             if isinstance(stream, ArrayObject):
                 data = b""
                 for s in stream:
-                    data += s.get_object().get_data()
+                    s_resolved = s.get_object()
+                    if isinstance(s_resolved, NullObject):
+                        continue
+                    if not isinstance(s_resolved, StreamObject):
+                        # No need to emit an exception here for now - the PDF structure
+                        # seems to already be broken beforehand in these cases.
+                        logger_warning(
+                            f"Expected StreamObject, got {type(s_resolved).__name__} instead. Data might be wrong.",
+                            __name__
+                        )
+                    else:
+                        data += s_resolved.get_data()
                     if len(data) == 0 or data[-1] != b"\n":
                         data += b"\n"
                 super().set_data(bytes(data))
@@ -1220,6 +1247,7 @@ class ContentStream(DecodedStreamObject):
 
         Returns:
             The cloned ContentStream
+
         """
         try:
             if self.indirect_reference.pdf == pdf_dest and not force_duplicate:  # type: ignore
@@ -1255,6 +1283,7 @@ class ContentStream(DecodedStreamObject):
             pdf_dest:
             force_duplicate:
             ignore_fields:
+
         """
         src_cs = cast("ContentStream", src)
         super().set_data(src_cs._data)
@@ -1270,7 +1299,7 @@ class ContentStream(DecodedStreamObject):
         operands: List[Union[int, str, PdfObject]] = []
         while True:
             peek = read_non_whitespace(stream)
-            if peek == b"" or peek == 0:
+            if peek in (b"", 0):
                 break
             stream.seek(-1, 1)
             if peek.isalpha() or peek in (b"'", b'"'):
@@ -1327,6 +1356,8 @@ class ContentStream(DecodedStreamObject):
             data = extract_inline_DCT(stream)
         elif filtr == "not set":
             cs = settings.get("/CS", "")
+            if isinstance(cs, list):
+                cs = cs[0]
             if "RGB" in cs:
                 lcs = 3
             elif "CMYK" in cs:
@@ -1345,6 +1376,7 @@ class ContentStream(DecodedStreamObject):
                 data = stream.read(
                     ceil(cast(int, settings["/W"]) * lcs) * cast(int, settings["/H"])
                 )
+            # Move to the `EI` if possible.
             ei = read_non_whitespace(stream)
             stream.seek(-1, 1)
         else:
@@ -1353,8 +1385,18 @@ class ContentStream(DecodedStreamObject):
         ei = stream.read(3)
         stream.seek(-1, 1)
         if ei[0:2] != b"EI" or ei[2:3] not in WHITESPACES:
+            # Deal with wrong/missing `EI` tags. Example: Wrong dimensions specified above.
             stream.seek(savpos, 0)
             data = extract_inline_default(stream)
+            ei = stream.read(3)
+            stream.seek(-1, 1)
+            if ei[0:2] != b"EI" or ei[2:3] not in WHITESPACES:  # pragma: no cover
+                # Check the same condition again. This should never fail as
+                # edge cases are covered by `extract_inline_default` above,
+                # but check this ot make sure that we are behind the `EI` afterwards.
+                raise PdfStreamError(
+                    f"Could not extract inline image, even using fallback. Expected 'EI', got {ei!r}"
+                )
         return {"settings": settings, "data": data}
 
     # This overrides the parent method:
@@ -1385,7 +1427,7 @@ class ContentStream(DecodedStreamObject):
         self._operations = []
 
     @property
-    def operations(self) -> List[Tuple[Any, Any]]:
+    def operations(self) -> List[Tuple[Any, bytes]]:
         if not self._operations and self._data:
             self._parse_content_stream(BytesIO(self._data))
             self._data = b""
@@ -1431,12 +1473,11 @@ def read_object(
             return read_hex_string_from_stream(stream, forced_encoding)
     elif tok == b"[":
         return ArrayObject.read_from_stream(stream, pdf, forced_encoding)
-    elif tok == b"t" or tok == b"f":
+    elif tok in (b"t", b"f"):
         return BooleanObject.read_from_stream(stream)
     elif tok == b"(":
         return read_string_from_stream(stream, forced_encoding)
     elif tok == b"e" and stream.read(6) == b"endobj":
-        stream.seek(-6, 1)
         return NullObject()
     elif tok == b"n":
         return NullObject.read_from_stream(stream)
@@ -1579,6 +1620,7 @@ class Destination(TreeObject):
 
     Raises:
         PdfReadError: If destination type is invalid.
+
     """
 
     node: Optional[

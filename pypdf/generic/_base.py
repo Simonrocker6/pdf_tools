@@ -65,21 +65,19 @@ class PdfObject(PdfObjectProtocol):
 
         Returns:
             Hash considering type and value.
+
         """
         raise NotImplementedError(
             f"{self.__class__.__name__} does not implement .hash_bin() so far"
         )
 
     def hash_value_data(self) -> bytes:
-        return ("%s" % self).encode()
+        return f"{self}".encode()
 
     def hash_value(self) -> bytes:
         return (
-            "%s:%s"
-            % (
-                self.__class__.__name__,
-                self.hash_func(self.hash_value_data()).hexdigest(),
-            )
+            f"{self.__class__.__name__}:"
+            f"{self.hash_func(self.hash_value_data()).hexdigest()}"
         ).encode()
 
     def replicate(
@@ -95,6 +93,7 @@ class PdfObject(PdfObjectProtocol):
 
         Returns:
           The cloned PdfObject
+
         """
         return self.clone(pdf_dest)
 
@@ -123,6 +122,7 @@ class PdfObject(PdfObjectProtocol):
 
         Returns:
           The cloned PdfObject
+
         """
         raise NotImplementedError(
             f"{self.__class__.__name__} does not implement .clone so far"
@@ -143,6 +143,7 @@ class PdfObject(PdfObjectProtocol):
 
         Returns:
           The clone
+
         """
         try:
             if not force_duplicate and clone.indirect_reference.pdf == pdf_dest:
@@ -213,6 +214,7 @@ class NullObject(PdfObject):
 
         Returns:
             Hash considering type and value.
+
         """
         return hash((self.__class__,))
 
@@ -258,14 +260,15 @@ class BooleanObject(PdfObject):
 
         Returns:
             Hash considering type and value.
+
         """
         return hash((self.__class__, self.value))
 
-    def __eq__(self, __o: object) -> bool:
-        if isinstance(__o, BooleanObject):
-            return self.value == __o.value
-        elif isinstance(__o, bool):
-            return self.value == __o
+    def __eq__(self, o: object, /) -> bool:
+        if isinstance(o, BooleanObject):
+            return self.value == o.value
+        elif isinstance(o, bool):
+            return self.value == o
         else:
             return False
 
@@ -311,6 +314,7 @@ class IndirectObject(PdfObject):
 
         Returns:
             Hash considering type and value.
+
         """
         return hash((self.__class__, self.idnum, self.generation, id(self.pdf)))
 
@@ -391,6 +395,10 @@ class IndirectObject(PdfObject):
     def __float__(self) -> str:
         # in this case we are looking for the pointed data
         return self.get_object().__float__()  # type: ignore
+
+    def __int__(self) -> int:
+        # in this case we are looking for the pointed data
+        return self.get_object().__int__()  # type: ignore
 
     def __str__(self) -> str:
         # in this case we are looking for the pointed data
@@ -484,6 +492,7 @@ class FloatObject(float, PdfObject):
 
         Returns:
             Hash considering type and value.
+
         """
         return hash((self.__class__, self.as_numeric))
 
@@ -538,6 +547,7 @@ class NumberObject(int, PdfObject):
 
         Returns:
             Hash considering type and value.
+
         """
         return hash((self.__class__, self.as_numeric()))
 
@@ -590,6 +600,7 @@ class ByteStringObject(bytes, PdfObject):
 
         Returns:
             Hash considering type and value.
+
         """
         return hash((self.__class__, bytes(self)))
 
@@ -608,6 +619,15 @@ class ByteStringObject(bytes, PdfObject):
         stream.write(b"<")
         stream.write(binascii.hexlify(self))
         stream.write(b">")
+
+    def __str__(self) -> str:
+        charset_to_try = ["utf-16"] + list(NameObject.CHARSETS)
+        for enc in charset_to_try:
+            try:
+                return self.decode(enc)
+            except UnicodeDecodeError:
+                pass
+        raise PdfReadError("Cannot decode ByteStringObject.")
 
 
 class TextStringObject(str, PdfObject):  # noqa: SLOT000
@@ -634,7 +654,7 @@ class TextStringObject(str, PdfObject):  # noqa: SLOT000
         o.autodetect_utf16 = False
         o.autodetect_pdfdocencoding = False
         o.utf16_bom = b""
-        if value.startswith(("\xfe\xff", "\xff\xfe")):
+        if o.startswith(("\xfe\xff", "\xff\xfe")):
             assert org is not None  # for mypy
             try:
                 o = str.__new__(cls, org.decode("utf-16"))
@@ -678,6 +698,7 @@ class TextStringObject(str, PdfObject):  # noqa: SLOT000
 
         Returns:
             Hash considering type and value.
+
         """
         return hash((self.__class__, self.original_bytes))
 
@@ -783,6 +804,7 @@ class NameObject(str, PdfObject):  # noqa: SLOT000
 
         Returns:
             Hash considering type and value.
+
         """
         return hash((self.__class__, self))
 
@@ -832,7 +854,7 @@ class NameObject(str, PdfObject):  # noqa: SLOT000
     def read_from_stream(stream: StreamType, pdf: Any) -> "NameObject":  # PdfReader
         name = stream.read(1)
         if name != NameObject.surfix:
-            raise PdfReadError("name read error")
+            raise PdfReadError("Name read error")
         name += read_until_regex(stream, NameObject.delimiter_pattern)
         try:
             # Name objects should represent irregular characters
@@ -877,6 +899,7 @@ def is_null_or_none(x: Any) -> TypeGuard[Union[None, NullObject, IndirectObject]
     """
     Returns:
         True if x is None or NullObject.
+
     """
     return x is None or (
         isinstance(x, PdfObject)

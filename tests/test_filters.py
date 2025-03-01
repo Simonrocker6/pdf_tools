@@ -1,4 +1,5 @@
 """Test the pypdf.filters module."""
+import os
 import shutil
 import string
 import subprocess
@@ -16,16 +17,16 @@ from pypdf.filters import (
     ASCIIHexDecode,
     CCITParameters,
     CCITTFaxDecode,
+    CCITTParameters,
     FlateDecode,
 )
-from pypdf.generic import ArrayObject, DictionaryObject, NameObject, NumberObject
+from pypdf.generic import ArrayObject, DictionaryObject, IndirectObject, NameObject, NumberObject
 
 from . import PILContext, get_data_from_url
 from .test_encryption import HAS_AES
 from .test_images import image_similarity
 
 filter_inputs = (
-    # "", '', """""",
     string.ascii_lowercase,
     string.ascii_uppercase,
     string.ascii_letters,
@@ -74,8 +75,7 @@ def test_flatedecode_unsupported_predictor():
 def test_flate_decode_decompress_with_array_params(params):
     """FlateDecode decode() method works correctly with array parameters."""
     codec = FlateDecode()
-    s = ""
-    s = s.encode()
+    s = b""
     encoded = codec.encode(s)
     with pytest.raises(DeprecationError):
         assert codec.decode(encoded, params) == s
@@ -135,7 +135,7 @@ def test_ascii_hex_decode_missing_eod():
     # assert exc.value.args[0] == "Unexpected EOD in ASCIIHexDecode"
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_decode_ahx():
     """
     See #1979
@@ -167,7 +167,7 @@ def test_ascii85decode_five_zero_bytes():
     """
     ASCII85Decode handles the special case of five zero bytes correctly.
 
-    From ISO 32000 (2008) §7.4.3:
+    ISO 32000-1:2008 §7.4.3:
 
     «As a special case, if all five bytes are 0, they shall be represented by
     the character with code 122 (z) instead of by five exclamation points
@@ -187,7 +187,17 @@ def test_ascii85decode_five_zero_bytes():
 
 
 def test_ccitparameters():
-    params = CCITParameters()
+    with pytest.warns(
+        DeprecationWarning,
+        match="CCITParameters is deprecated and will be removed in pypdf 6.0.0. Use CCITTParameters instead",
+    ):
+        params = CCITParameters()
+        assert params.K == 0  # zero is the default according to page 78
+        assert params.group == 3
+
+
+def test_ccittparameters():
+    params = CCITTParameters()
     assert params.K == 0  # zero is the default according to page 78
     assert params.group == 3
 
@@ -196,12 +206,23 @@ def test_ccitparameters():
     ("parameters", "expected_k"),
     [
         (None, 0),
-        (ArrayObject([{"/K": 1}, {"/Columns": 13}]), 1),
+        (ArrayObject([{"/K": NumberObject(1)}, {"/Columns": NumberObject(13)}]), 1),
     ],
 )
 def test_ccitt_get_parameters(parameters, expected_k):
     parameters = CCITTFaxDecode._get_parameters(parameters=parameters, rows=0)
     assert parameters.K == expected_k  # noqa: SIM300
+
+
+def test_ccitt_get_parameters__indirect_object():
+    class Pdf:
+        def get_object(self, reference) -> NumberObject:
+            return NumberObject(42)
+
+    parameters = CCITTFaxDecode._get_parameters(
+        parameters=None, rows=IndirectObject(13, 1, Pdf())
+    )
+    assert parameters.rows == 42
 
 
 def test_ccitt_fax_decode():
@@ -223,7 +244,7 @@ def test_ccitt_fax_decode():
     )
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_decompress_zlib_error(caplog):
     reader = PdfReader(BytesIO(get_data_from_url(name="tika-952445.pdf")))
     for page in reader.pages:
@@ -231,26 +252,27 @@ def test_decompress_zlib_error(caplog):
     assert "incorrect startxref pointer(3)" in caplog.text
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_lzw_decode_neg1():
     reader = PdfReader(BytesIO(get_data_from_url(name="tika-921632.pdf")))
     page = reader.pages[47]
     assert page.extract_text().startswith("Chapter 2")
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_issue_399():
     reader = PdfReader(BytesIO(get_data_from_url(name="tika-976970.pdf")))
     reader.pages[1].extract_text()
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_image_without_pillow(tmp_path):
-    import os
+    env = os.environ.copy()
+    env["COVERAGE_PROCESS_START"] = "pyproject.toml"
 
     name = "tika-914102.pdf"
     pdf_path = Path(__file__).parent / "pdf_cache" / name
-    pdf_path_str = str(pdf_path.resolve()).replace("\\", "/")
+    pdf_path_str = pdf_path.resolve().as_posix()
 
     source_file = tmp_path / "script.py"
     source_file.write_text(
@@ -273,13 +295,13 @@ for page in reader.pages:
     ), exc.value.args[0]
 """
     )
-    env = os.environ.copy()
+
     try:
         env["PYTHONPATH"] = "." + os.pathsep + env["PYTHONPATH"]
     except KeyError:
         env["PYTHONPATH"] = "."
-    result = subprocess.run(
-        [shutil.which("python"), source_file],  # noqa: S603
+    result = subprocess.run(  # noqa: S603  # We have the control here.
+        [shutil.which("python"), source_file],
         capture_output=True,
         env=env,
     )
@@ -291,7 +313,7 @@ for page in reader.pages:
     )
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_issue_1737():
     reader = PdfReader(BytesIO(get_data_from_url(name="iss1737.pdf")))
     reader.pages[0]["/Resources"]["/XObject"]["/Im0"].get_data()
@@ -299,7 +321,7 @@ def test_issue_1737():
     reader.pages[0]["/Resources"]["/XObject"]["/Im2"].get_data()
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_pa_image_extraction():
     """
     PNG images with PA mode can be extracted.
@@ -318,7 +340,7 @@ def test_pa_image_extraction():
     assert data == images[0].data
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_1bit_image_extraction():
     """Cf issue #1814"""
     reader = PdfReader(BytesIO(get_data_from_url(name="grimm10")))
@@ -326,21 +348,21 @@ def test_1bit_image_extraction():
         p.images
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_png_transparency_reverse():
     """Cf issue #1599"""
     pdf_path = RESOURCE_ROOT / "labeled-edges-center-image.pdf"
     reader = PdfReader(pdf_path)
-    _refimg = Image.open(
+    refimg = Image.open(
         BytesIO(get_data_from_url(name="labeled-edges-center-image.png"))
     )
     data = reader.pages[0].images[0]
-    _img = Image.open(BytesIO(data.data))
+    img = Image.open(BytesIO(data.data))
     assert ".jp2" in data.name
-    # assert list(img.getdata()) == list(refimg.getdata())
+    assert list(img.getdata()) == list(refimg.getdata())
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_iss1787():
     """Cf issue #1787"""
     reader = PdfReader(BytesIO(get_data_from_url(name="pdf_font_garbled.pdf")))
@@ -357,7 +379,7 @@ def test_iss1787():
     assert exc.value.args[0] == "Image data is not rectangular"
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_tiff_predictor():
     """Decode Tiff Predictor 2 Images"""
     reader = PdfReader(BytesIO(get_data_from_url(name="tika-977609.pdf")))
@@ -368,9 +390,9 @@ def test_tiff_predictor():
     assert list(img.getdata()) == list(refimg.getdata())
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_rgba():
-    """Decode rgb with transparency"""
+    """Decode RGB with transparency"""
     with PILContext():
         reader = PdfReader(BytesIO(get_data_from_url(name="tika-972174.pdf")))
         data = reader.pages[0].images[0]
@@ -381,9 +403,9 @@ def test_rgba():
         assert similarity > 0.99
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_cmyk():
-    """Decode cmyk"""
+    """Decode CMYK"""
     # JPEG compression
     try:
         from Crypto.Cipher import AES  # noqa: F401
@@ -404,7 +426,7 @@ def test_cmyk():
     assert image_similarity(data.image, refimg) > 0.999  # lossless compression expected
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_iss1863():
     """Test doc from iss1863"""
     reader = PdfReader(BytesIO(get_data_from_url(name="o1whh9b3.pdf")))
@@ -413,7 +435,7 @@ def test_iss1863():
             i.name
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_read_images():
     reader = PdfReader(BytesIO(get_data_from_url(name="selbst.72916.pdf")))
     page = reader.pages[0]
@@ -421,7 +443,7 @@ def test_read_images():
         pass
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_cascaded_filters_images():
     reader = PdfReader(BytesIO(get_data_from_url(name="iss1912.pdf")))
     # for focus, analyse the page 23
@@ -430,13 +452,13 @@ def test_cascaded_filters_images():
             _ = i.name, i.image
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_calrgb():
     reader = PdfReader(BytesIO(get_data_from_url(name="calRGB.pdf")))
     reader.pages[0].images[0]
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_index_lookup():
     """The lookup is provided as an str and bytes"""
     reader = PdfReader(BytesIO(get_data_from_url(name="2023USDC.pdf")))
@@ -451,7 +473,7 @@ def test_index_lookup():
     assert data.image.mode == "RGB"
     assert image_similarity(data.image, refimg) > 0.999
     # indexed CMYK images
-    # currently with a  TODO as we convert to RBG the palette
+    # currently with a TODO as we convert the palette to RGB
     reader = PdfReader(BytesIO(get_data_from_url(name="tika-972174.pdf")))
     refimg = Image.open(BytesIO(get_data_from_url(name="usa.png")))
     data = reader.pages[0].images["/Im3"]
@@ -459,7 +481,7 @@ def test_index_lookup():
     assert image_similarity(data.image, refimg) > 0.999
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_2bits_image():
     """From #1954, test with 2bits image. TODO: 4bits also"""
     reader = PdfReader(BytesIO(get_data_from_url(name="paid.pdf")))
@@ -470,7 +492,7 @@ def test_2bits_image():
     assert image_similarity(data.image, refimg) > 0.99
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_gray_devicen_cmyk():
     """
     Cf #1979
@@ -487,7 +509,7 @@ def test_gray_devicen_cmyk():
     assert image_similarity(data.image, refimg) > 0.999
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_runlengthdecode():
     """From #1954, test with 2bits image. TODO: 4bits also"""
     url = "https://github.com/py-pdf/pypdf/files/12159941/out.pdf"
@@ -507,7 +529,7 @@ def test_runlengthdecode():
     reader.pages[0].images[0]
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_gray_separation_cmyk():
     """
     Cf #1955
@@ -524,7 +546,7 @@ def test_gray_separation_cmyk():
     assert image_similarity(data.image, refimg) > 0.999
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_singleton_device():
     """From #2023"""
     url = "https://github.com/py-pdf/pypdf/files/12177287/tt.pdf"
@@ -533,7 +555,7 @@ def test_singleton_device():
     reader.pages[0].images[0]
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_jpx_no_spacecode():
     """From #2061"""
     url = "https://github.com/py-pdf/pypdf/files/12253581/tt2.pdf"
@@ -548,7 +570,7 @@ def test_jpx_no_spacecode():
     assert exc.value.args[0].startswith("ColorSpace field not found")
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_encodedstream_lookup():
     """From #2124"""
     url = "https://github.com/py-pdf/pypdf/files/12455580/10.pdf"
@@ -557,7 +579,7 @@ def test_encodedstream_lookup():
     reader.pages[12].images[0]
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_convert_1_to_la():
     """From #2165"""
     url = "https://github.com/py-pdf/pypdf/files/12543290/whitepaper.WBT.token.blockchain.whitepaper.pdf"
@@ -567,7 +589,7 @@ def test_convert_1_to_la():
         _ = i
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_nested_device_n_color_space():
     """From #2240"""
     url = "https://github.com/py-pdf/pypdf/files/12814018/out1.pdf"
@@ -576,7 +598,7 @@ def test_nested_device_n_color_space():
     reader.pages[0].images[0]
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 @pytest.mark.skipif(not HAS_AES, reason="No AES implementation")
 def test_flate_decode_with_image_mode_1():
     """From #2248"""
@@ -587,10 +609,36 @@ def test_flate_decode_with_image_mode_1():
         _ = image
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_flate_decode_with_image_mode_1__whitespace_at_end_of_lookup():
     """From #2331"""
     url = "https://github.com/py-pdf/pypdf/files/13611048/out1.pdf"
     name = "issue2331.pdf"
     reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
     reader.pages[0].images[0]
+
+
+@pytest.mark.enable_socket
+def test_ascii85decode__invalid_end__recoverable(caplog):
+    """From #2996"""
+    url = "https://github.com/user-attachments/files/18050808/1af7d56a-5c8c-4914-85b3-b2536a5525cd.pdf"
+    name = "issue2996.pdf"
+    reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
+
+    page = reader.pages[1]
+    assert page.extract_text() == ""
+    assert "Ignoring missing Ascii85 end marker." in caplog.text
+
+
+def test_ascii85decode__non_recoverable(caplog):
+    # Without our custom handling, this would complain about the final `~>` being missing.
+    data = "äöüß"
+    with pytest.raises(ValueError, match="Non-Ascii85 digit found: Ã"):
+        ASCII85Decode.decode(data)
+    assert "Ignoring missing Ascii85 end marker." in caplog.text
+    caplog.clear()
+
+    data += "~>"
+    with pytest.raises(ValueError, match="Non-Ascii85 digit found: Ã"):
+        ASCII85Decode.decode(data)
+    assert caplog.text == ""

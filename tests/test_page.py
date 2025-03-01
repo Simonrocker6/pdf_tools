@@ -46,7 +46,7 @@ def get_all_sample_files():
 all_files_meta = get_all_sample_files()
 
 
-@pytest.mark.samples()
+@pytest.mark.samples
 @pytest.mark.parametrize(
     "meta",
     [m for m in all_files_meta["data"] if not m["encrypted"]],
@@ -63,8 +63,8 @@ def test_read(meta):
     assert len(reader.pages) == meta["pages"]
 
 
-@pytest.mark.samples()
-@pytest.mark.enable_socket()
+@pytest.mark.samples
+@pytest.mark.enable_socket
 @pytest.mark.parametrize(
     ("pdf_path", "password"),
     [
@@ -148,7 +148,7 @@ def test_mediabox_expansion_after_rotation(
 
     mediabox = reader.pages[0].mediabox
 
-    # Deviation of upto 2 pixels is acceptable
+    # Deviation of up to 2 pixels is acceptable
     assert math.isclose(mediabox.width, expected_width, abs_tol=2)
     assert math.isclose(mediabox.height, expected_height, abs_tol=2)
 
@@ -253,7 +253,7 @@ def compare_dict_objects(d1, d2):
             assert d1[key] == d2[key]
 
 
-@pytest.mark.slow()
+@pytest.mark.slow
 def test_page_transformations():
     pdf_path = RESOURCE_ROOT / "crazyones.pdf"
     reader = PdfReader(pdf_path)
@@ -375,7 +375,7 @@ def test_add_transformation_on_page_without_contents():
     assert isinstance(page.get_contents(), ContentStream)
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_iss_1142():
     # check fix for problem of context save/restore (q/Q)
     url = "https://github.com/py-pdf/pypdf/files/9150656/ST.2019.PDF"
@@ -393,19 +393,19 @@ def test_iss_1142():
     assert txt.find("郑州分公司") > 0
 
 
-@pytest.mark.enable_socket()
-@pytest.mark.slow()
+@pytest.mark.enable_socket
+@pytest.mark.slow
 @pytest.mark.parametrize(
     ("url", "name"),
     [
         # keyerror_potentially_empty_page
         (
-            "https://corpora.tika.apache.org/base/docs/govdocs1/964/964029.pdf",
+            "https://github.com/user-attachments/files/18381736/tika-964029.pdf",
             "tika-964029.pdf",
         ),
         # 1140 / 1141:
         (
-            "https://corpora.tika.apache.org/base/docs/govdocs1/932/932446.pdf",
+            "https://github.com/user-attachments/files/18381702/tika-932446.pdf",
             "tika-932446.pdf",
         ),
         # iss 1134:
@@ -419,7 +419,7 @@ def test_iss_1142():
             "WFCA.pdf",
         ),
         (
-            "https://corpora.tika.apache.org/base/docs/govdocs1/964/964029.pdf",
+            "https://github.com/user-attachments/files/18381736/tika-964029.pdf",
             "tika-964029.pdf",
         ),  # single_quote_op
         (
@@ -439,10 +439,10 @@ def test_extract_text(url, name):
         page.extract_text()
 
 
-@pytest.mark.enable_socket()
-@pytest.mark.slow()
+@pytest.mark.enable_socket
+@pytest.mark.slow
 def test_extract_text_page_pdf_impossible_decode_xform(caplog):
-    url = "https://corpora.tika.apache.org/base/docs/govdocs1/972/972962.pdf"
+    url = "https://github.com/user-attachments/files/18381748/tika-972962.pdf"
     name = "tika-972962.pdf"
     reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
     for page in reader.pages:
@@ -451,10 +451,10 @@ def test_extract_text_page_pdf_impossible_decode_xform(caplog):
     assert warn_msgs == [""]  # text extraction recognise no text
 
 
-@pytest.mark.enable_socket()
-@pytest.mark.slow()
+@pytest.mark.enable_socket
+@pytest.mark.slow
 def test_extract_text_operator_t_star():  # L1266, L1267
-    url = "https://corpora.tika.apache.org/base/docs/govdocs1/967/967943.pdf"
+    url = "https://github.com/user-attachments/files/18381740/tika-967943.pdf"
     name = "tika-967943.pdf"
     reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
     for page in reader.pages:
@@ -479,7 +479,7 @@ def test_extract_text_visitor_callbacks():
         """
 
         def __init__(self, text, x, y, font_dict, font_size) -> None:
-            # TODO \0-replace: Encoding issue in some files?
+            # TODO: \0-replace: Encoding issue in some files?
             self.text = text.replace("\0", "")
             self.x = x
             self.y = y
@@ -507,10 +507,8 @@ def test_extract_text_visitor_callbacks():
 
         def contains(self, x, y) -> bool:
             return (
-                x >= self.x
-                and x <= (self.x + self.w)
-                and y >= self.y
-                and y <= (self.y + self.h)
+                self.x <= x <= (self.x + self.w)
+                and self.y <= y <= (self.y + self.h)
             )
 
     def extract_text_and_rectangles(
@@ -801,7 +799,7 @@ def test_get_fonts(pdf_path, password, embedded, unembedded):
     assert (a, b) == (embedded, unembedded)
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_get_fonts2():
     url = "https://github.com/py-pdf/pypdf/files/12618104/WS_T.483.8-2016.pdf"
     name = "WS_T.483.8-2016.pdf"
@@ -940,10 +938,10 @@ def test_annotation_setter(pdf_file_path):
         writer.write(fp)
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 @pytest.mark.xfail(reason="#1091")
 def test_text_extraction_issue_1091():
-    url = "https://corpora.tika.apache.org/base/docs/govdocs1/966/966635.pdf"
+    url = "https://github.com/user-attachments/files/18381737/tika-966635.pdf"
     name = "tika-966635.pdf"
     stream = BytesIO(get_data_from_url(url, name=name))
     with pytest.warns(PdfReadWarning):
@@ -952,16 +950,16 @@ def test_text_extraction_issue_1091():
         page.extract_text()
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_empyt_password_1088():
-    url = "https://corpora.tika.apache.org/base/docs/govdocs1/941/941536.pdf"
+    url = "https://github.com/user-attachments/files/18381712/tika-941536.pdf"
     name = "tika-941536.pdf"
     stream = BytesIO(get_data_from_url(url, name=name))
     reader = PdfReader(stream)
     len(reader.pages)
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_old_habibi():
     # this habibi has multiple characters associated with the h
     reader = PdfReader(SAMPLE_ROOT / "015-arabic/habibi.pdf")
@@ -971,7 +969,7 @@ def test_old_habibi():
     assert "حَبيبي" in txt
 
 
-@pytest.mark.samples()
+@pytest.mark.samples
 def test_read_link_annotation():
     reader = PdfReader(SAMPLE_ROOT / "016-libre-office-link/libre-office-link.pdf")
     assert len(reader.pages[0].annotations) == 1
@@ -1001,7 +999,7 @@ def test_read_link_annotation():
     assert annot == expected
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_no_resources():
     url = "https://github.com/py-pdf/pypdf/files/9572045/108.pdf"
     name = "108.pdf"
@@ -1174,7 +1172,7 @@ def test_merge_page_resources_smoke_test():
     assert relevant_operations == expected_operations
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_merge_transformed_page_into_blank():
     url = "https://github.com/py-pdf/pypdf/files/10768334/badges_3vjrh_7LXDZ_1-1.pdf"
     name = "badges_3vjrh_7LXDZ_1.pdf"
@@ -1221,9 +1219,9 @@ def test_pages_printing():
         reader.pages[0].images["~1~"]
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_del_pages():
-    url = "https://corpora.tika.apache.org/base/docs/govdocs1/941/941536.pdf"
+    url = "https://github.com/user-attachments/files/18381712/tika-941536.pdf"
     name = "tika-941536.pdf"
     writer = PdfWriter(clone_from=BytesIO(get_data_from_url(url, name=name)))
     ll = len(writer.pages)
@@ -1280,7 +1278,7 @@ def test_pdf_pages_missing_type():
     writer.pages[0]
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_merge_with_stream_wrapped_in_save_restore():
     """Test for issue #2587"""
     url = "https://github.com/py-pdf/pypdf/files/14895914/blank_portrait.pdf"
@@ -1293,7 +1291,7 @@ def test_merge_with_stream_wrapped_in_save_restore():
     assert b"QQ" not in page_one.get_contents().get_data()
 
 
-@pytest.mark.samples()
+@pytest.mark.samples
 def test_compression():
     """Test for issue #1897"""
 
@@ -1352,7 +1350,7 @@ def test_get_contents_from_nullobject():
     page1.merge_page(page2, over=True)
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_pos_text_in_textvisitor():
     """See #2200"""
     url = "https://github.com/py-pdf/pypdf/files/12675974/page_178.pdf"
@@ -1370,7 +1368,7 @@ def test_pos_text_in_textvisitor():
     assert abs(p[1] - 457.4) < 0.1
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_pos_text_in_textvisitor2():
     """See #2075"""
     url = "https://github.com/py-pdf/pypdf/files/12318042/LegIndex-page6.pdf"
@@ -1430,7 +1428,7 @@ def test_pos_text_in_textvisitor2():
     ]
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_missing_basefont_in_type3():
     """Cf #2289"""
     url = "https://github.com/py-pdf/pypdf/files/13307713/missing-base-font.pdf"

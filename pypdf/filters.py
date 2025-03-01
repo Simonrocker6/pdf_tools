@@ -38,6 +38,7 @@ import math
 import struct
 import zlib
 from base64 import a85decode
+from dataclasses import dataclass
 from io import BytesIO
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
@@ -45,6 +46,7 @@ from ._codecs._codecs import LzwCodec as _LzwCodec
 from ._utils import (
     WHITESPACES_AS_BYTES,
     deprecate,
+    deprecate_with_replacement,
     deprecation_no_replacement,
     logger_warning,
 )
@@ -67,24 +69,25 @@ def decompress(data: bytes) -> bytes:
     """
     Decompress the given data using zlib.
 
-    This function attempts to decompress the input data using zlib. If the
-    decompression fails due to a zlib error, it falls back to using a
-    decompression object with a larger window size.
+    Attempts to decompress the input data using zlib.
+    If the decompression fails due to a zlib error, it falls back
+    to using a decompression object with a larger window size.
 
     Args:
         data: The input data to be decompressed.
 
     Returns:
         The decompressed data.
+
     """
     try:
         return zlib.decompress(data)
     except zlib.error:
         try:
-            # For larger files, use Decompress object to enable buffered reading
+            # For larger files, use decompression object to enable buffered reading
             return zlib.decompressobj().decompress(data)
         except zlib.error:
-            # If still failed, then try with increased window size
+            # If still failing, then try with increased window size
             d = zlib.decompressobj(zlib.MAX_WBITS | 32)
             result_str = b""
             for b in [data[i : i + 1] for i in range(len(data))]:
@@ -115,6 +118,7 @@ class FlateDecode:
 
         Raises:
           PdfReadError:
+
         """
         if isinstance(decode_parms, ArrayObject):
             raise DeprecationError("decode_parms as ArrayObject is deprecated")
@@ -244,6 +248,7 @@ class FlateDecode:
 
         Returns:
             The compressed data.
+
         """
         return zlib.compress(data, level)
 
@@ -275,6 +280,7 @@ class ASCIIHexDecode:
 
         Raises:
           PdfStreamError:
+
         """
         # decode_parms is unused here
 
@@ -288,7 +294,7 @@ class ASCIIHexDecode:
                 logger_warning(
                     "missing EOD in ASCIIHexDecode, check if output is OK", __name__
                 )
-                break  # reach End Of String even if no EOD
+                break  # Reached end of string even if no EOD
             char = data[index : index + 1]
             if char == b">":
                 break
@@ -336,6 +342,7 @@ class RunLengthDecode:
 
         Raises:
           PdfStreamError:
+
         """
         # decode_parms is unused here
 
@@ -351,7 +358,7 @@ class RunLengthDecode:
             index += 1
             if length == 128:
                 if index < len(data):
-                    raise PdfStreamError("early EOD in RunLengthDecode")
+                    raise PdfStreamError("Early EOD in RunLengthDecode")
                 else:
                     break
             elif length < 128:
@@ -391,6 +398,7 @@ class LZWDecode:
 
         Returns:
           decoded data.
+
         """
         # decode_parms is unused here
         return LZWDecode.Decoder(data).decode()
@@ -410,6 +418,7 @@ class LZWDecode:
 
         Returns:
           decoded data.
+
         """
         # decode_parms is unused here
         deprecate("LZWDecode.decode will return bytes instead of str in pypdf 6.0.0")
@@ -434,11 +443,18 @@ class ASCII85Decode:
 
         Returns:
           decoded data.
+
         """
         if isinstance(data, str):
             data = data.encode()
         data = data.strip(WHITESPACES_AS_BYTES)
-        return a85decode(data, adobe=True, ignorechars=WHITESPACES_AS_BYTES)
+        try:
+            return a85decode(data, adobe=True, ignorechars=WHITESPACES_AS_BYTES)
+        except ValueError as error:
+            if error.args[0] == "Ascii85 encoded byte sequences must end with b'~>'":
+                logger_warning("Ignoring missing Ascii85 end marker.", __name__)
+                return a85decode(data, adobe=False, ignorechars=WHITESPACES_AS_BYTES)
+            raise
 
 
 class DCTDecode:
@@ -463,27 +479,41 @@ class JPXDecode:
         return data
 
 
-class CCITParameters:
+@dataclass
+class CCITTParameters:
     """§7.4.6, optional parameters for the CCITTFaxDecode filter."""
 
-    def __init__(self, K: int = 0, columns: int = 0, rows: int = 0) -> None:
-        self.K = K
-        self.EndOfBlock = None
-        self.EndOfLine = None
-        self.EncodedByteAlign = None
-        self.columns = columns  # width
-        self.rows = rows  # height
-        self.DamagedRowsBeforeError = None
+    K: int = 0
+    columns: int = 0
+    rows: int = 0
+    EndOfBlock: Union[int, None] = None
+    EndOfLine: Union[int, None] = None
+    EncodedByteAlign: Union[int, None] = None
+    DamagedRowsBeforeError: Union[int, None] = None
 
     @property
     def group(self) -> int:
         if self.K < 0:
+            # Pure two-dimensional encoding (Group 4)
             CCITTgroup = 4
         else:
-            # k == 0: Pure one-dimensional encoding (Group 3, 1-D)
-            # k > 0: Mixed one- and two-dimensional encoding (Group 3, 2-D)
+            # K == 0: Pure one-dimensional encoding (Group 3, 1-D)
+            # K > 0: Mixed one- and two-dimensional encoding (Group 3, 2-D)
             CCITTgroup = 3
         return CCITTgroup
+
+
+def __create_old_class_instance(
+    K: int = 0,
+    columns: int = 0,
+    rows: int = 0
+) -> CCITTParameters:
+    deprecate_with_replacement("CCITParameters", "CCITTParameters", "6.0.0")
+    return CCITTParameters(K, columns, rows)
+
+
+# Create an alias for the old class name
+CCITParameters = __create_old_class_instance
 
 
 class CCITTFaxDecode:
@@ -499,8 +529,8 @@ class CCITTFaxDecode:
     @staticmethod
     def _get_parameters(
         parameters: Union[None, ArrayObject, DictionaryObject, IndirectObject],
-        rows: int,
-    ) -> CCITParameters:
+        rows: Union[int, IndirectObject],
+    ) -> CCITTParameters:
         # §7.4.6, optional parameters for the CCITTFaxDecode filter
         k = 0
         columns = 1728
@@ -511,16 +541,16 @@ class CCITTFaxDecode:
             if isinstance(parameters_unwrapped, ArrayObject):
                 for decode_parm in parameters_unwrapped:
                     if CCITT.COLUMNS in decode_parm:
-                        columns = decode_parm[CCITT.COLUMNS]
+                        columns = decode_parm[CCITT.COLUMNS].get_object()
                     if CCITT.K in decode_parm:
-                        k = decode_parm[CCITT.K]
+                        k = decode_parm[CCITT.K].get_object()
             else:
                 if CCITT.COLUMNS in parameters_unwrapped:
-                    columns = parameters_unwrapped[CCITT.COLUMNS]  # type: ignore
+                    columns = parameters_unwrapped[CCITT.COLUMNS].get_object()  # type: ignore
                 if CCITT.K in parameters_unwrapped:
-                    k = parameters_unwrapped[CCITT.K]  # type: ignore
+                    k = parameters_unwrapped[CCITT.K].get_object()  # type: ignore
 
-        return CCITParameters(k, columns, rows)
+        return CCITTParameters(K=k, columns=columns, rows=int(rows))
 
     @staticmethod
     def decode(
@@ -584,14 +614,12 @@ class CCITTFaxDecode:
         return tiff_header + data
 
 
-def decode_stream_data(stream: Any) -> bytes:  # utils.StreamObject
+def decode_stream_data(stream: Any) -> bytes:
     """
     Decode the stream data based on the specified filters.
 
     This function decodes the stream data using the filters provided in the
-    stream. It supports various filter types, including FlateDecode,
-    ASCIIHexDecode, RunLengthDecode, LZWDecode, ASCII85Decode, DCTDecode, JPXDecode, and
-    CCITTFaxDecode.
+    stream.
 
     Args:
         stream: The input stream object containing the data and filters.
@@ -601,46 +629,48 @@ def decode_stream_data(stream: Any) -> bytes:  # utils.StreamObject
 
     Raises:
         NotImplementedError: If an unsupported filter type is encountered.
+
     """
     filters = stream.get(SA.FILTER, ())
     if isinstance(filters, IndirectObject):
         filters = cast(ArrayObject, filters.get_object())
     if not isinstance(filters, ArrayObject):
-        # we have a single filter instance
+        # We have a single filter instance
         filters = (filters,)
-    decodparms = stream.get(SA.DECODE_PARMS, ({},) * len(filters))
-    if not isinstance(decodparms, (list, tuple)):
-        decodparms = (decodparms,)
+    decode_parms = stream.get(SA.DECODE_PARMS, ({},) * len(filters))
+    if not isinstance(decode_parms, (list, tuple)):
+        decode_parms = (decode_parms,)
     data: bytes = stream._data
     # If there is not data to decode we should not try to decode the data.
-    if data:
-        for filter_type, params in zip(filters, decodparms):
-            if isinstance(params, NullObject):
-                params = {}
-            if filter_type in (FT.FLATE_DECODE, FTA.FL):
-                data = FlateDecode.decode(data, params)
-            elif filter_type in (FT.ASCII_HEX_DECODE, FTA.AHx):
-                data = ASCIIHexDecode.decode(data)
-            elif filter_type in (FT.RUN_LENGTH_DECODE, FTA.RL):
-                data = RunLengthDecode.decode(data)
-            elif filter_type in (FT.LZW_DECODE, FTA.LZW):
-                data = LZWDecode._decodeb(data, params)
-            elif filter_type in (FT.ASCII_85_DECODE, FTA.A85):
-                data = ASCII85Decode.decode(data)
-            elif filter_type == FT.DCT_DECODE:
-                data = DCTDecode.decode(data)
-            elif filter_type == FT.JPX_DECODE:
-                data = JPXDecode.decode(data)
-            elif filter_type == FT.CCITT_FAX_DECODE:
-                height = stream.get(IA.HEIGHT, ())
-                data = CCITTFaxDecode.decode(data, params, height)
-            elif filter_type == "/Crypt":
-                if "/Name" in params or "/Type" in params:
-                    raise NotImplementedError(
-                        "/Crypt filter with /Name or /Type not supported yet"
-                    )
-            else:
-                raise NotImplementedError(f"Unsupported filter {filter_type}")
+    if not data:
+        return data
+    for filter_name, params in zip(filters, decode_parms):
+        if isinstance(params, NullObject):
+            params = {}
+        if filter_name in (FT.ASCII_HEX_DECODE, FTA.AHx):
+            data = ASCIIHexDecode.decode(data)
+        elif filter_name in (FT.ASCII_85_DECODE, FTA.A85):
+            data = ASCII85Decode.decode(data)
+        elif filter_name in (FT.LZW_DECODE, FTA.LZW):
+            data = LZWDecode._decodeb(data, params)
+        elif filter_name in (FT.FLATE_DECODE, FTA.FL):
+            data = FlateDecode.decode(data, params)
+        elif filter_name in (FT.RUN_LENGTH_DECODE, FTA.RL):
+            data = RunLengthDecode.decode(data)
+        elif filter_name == FT.CCITT_FAX_DECODE:
+            height = stream.get(IA.HEIGHT, ())
+            data = CCITTFaxDecode.decode(data, params, height)
+        elif filter_name == FT.DCT_DECODE:
+            data = DCTDecode.decode(data)
+        elif filter_name == FT.JPX_DECODE:
+            data = JPXDecode.decode(data)
+        elif filter_name == "/Crypt":
+            if "/Name" in params or "/Type" in params:
+                raise NotImplementedError(
+                    "/Crypt filter with /Name or /Type not supported yet"
+                )
+        else:
+            raise NotImplementedError(f"Unsupported filter {filter_name}")
     return data
 
 
@@ -656,6 +686,7 @@ def _xobj_to_image(x_object_obj: Dict[str, Any]) -> Tuple[Optional[str], bytes, 
 
     Returns:
         Tuple[file extension, bytes, PIL.Image.Image]
+
     """
     from ._xobj_image_helpers import (
         Image,
@@ -700,7 +731,7 @@ def _xobj_to_image(x_object_obj: Dict[str, Any]) -> Tuple[Optional[str], bytes, 
 
     # for error reporting
     obj_as_text = (
-        x_object_obj.indirect_reference.__repr__()  # type: ignore
+        x_object_obj.indirect_reference.__repr__()
         if x_object_obj is None  # pragma: no cover
         else x_object_obj.__repr__()
     )

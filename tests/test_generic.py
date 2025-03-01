@@ -193,7 +193,7 @@ def test_name_object(caplog):
     stream = BytesIO(b"x")
     with pytest.raises(PdfReadError) as exc:
         NameObject.read_from_stream(stream, None)
-    assert exc.value.args[0] == "name read error"
+    assert exc.value.args[0] == "Name read error"
     assert (
         NameObject.read_from_stream(
             BytesIO(b"/A;Name_With-Various***Characters?"), None
@@ -234,7 +234,7 @@ def test_name_object(caplog):
 
     caplog.clear()
     b = BytesIO()
-    with pytest.raises(DeprecationWarning):
+    with pytest.warns(DeprecationWarning):
         NameObject("hello").write_to_stream(b)
 
     caplog.clear()
@@ -312,6 +312,15 @@ def test_read_object_empty():
     assert isinstance(read_object(stream, pdf), NullObject)
 
 
+def test_read_object_empty_in_array():
+    stream = BytesIO(b"[endobj")
+    pdf = None
+    result = read_object(stream, pdf)
+    assert isinstance(result, ArrayObject)
+    assert len(result) == 1
+    assert isinstance(result[0], NullObject)
+
+
 def test_read_object_invalid():
     stream = BytesIO(b"hello")
     pdf = None
@@ -339,7 +348,7 @@ def test_dictionaryobject_key_is_no_pdfobject():
     do = DictionaryObject({NameObject("/S"): NameObject("/GoTo")})
     with pytest.raises(ValueError) as exc:
         do["foo"] = NameObject("/GoTo")
-    assert exc.value.args[0] == "key must be PdfObject"
+    assert exc.value.args[0] == "Key must be a PdfObject"
 
 
 def test_dictionaryobject_xmp_meta():
@@ -351,21 +360,21 @@ def test_dictionaryobject_value_is_no_pdfobject():
     do = DictionaryObject({NameObject("/S"): NameObject("/GoTo")})
     with pytest.raises(ValueError) as exc:
         do[NameObject("/S")] = "/GoTo"
-    assert exc.value.args[0] == "value must be PdfObject"
+    assert exc.value.args[0] == "Value must be a PdfObject"
 
 
 def test_dictionaryobject_setdefault_key_is_no_pdfobject():
     do = DictionaryObject({NameObject("/S"): NameObject("/GoTo")})
     with pytest.raises(ValueError) as exc:
         do.setdefault("foo", NameObject("/GoTo"))
-    assert exc.value.args[0] == "key must be PdfObject"
+    assert exc.value.args[0] == "Key must be a PdfObject"
 
 
 def test_dictionaryobject_setdefault_value_is_no_pdfobject():
     do = DictionaryObject({NameObject("/S"): NameObject("/GoTo")})
     with pytest.raises(ValueError) as exc:
         do.setdefault(NameObject("/S"), "/GoTo")
-    assert exc.value.args[0] == "value must be PdfObject"
+    assert exc.value.args[0] == "Value must be a PdfObject"
 
 
 def test_dictionaryobject_setdefault_value():
@@ -498,6 +507,11 @@ def test_textstringobject_autodetect_utf16():
     assert tso.get_encoded_bytes() == b"\xff\xfef\x00o\x00o\x00"
 
 
+def test_textstringobject__numbers_as_input():
+    _ = TextStringObject(42)
+    _ = TextStringObject(13.37)
+
+
 def test_remove_child_not_in_tree():
     tree = TreeObject()
     with pytest.raises(ValueError) as exc:
@@ -618,32 +632,32 @@ def test_remove_child_in_tree():
     tree.empty_tree()
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 @pytest.mark.parametrize(
     ("url", "name", "caplog_content"),
     [
         (  # parse_content_stream_peek_percentage
-            "https://corpora.tika.apache.org/base/docs/govdocs1/985/985770.pdf",
+            "https://github.com/user-attachments/files/18381763/tika-985770.pdf",
             "tika-985770.pdf",
             "",
         ),
         (  # read_inline_image_no_has_q
-            "https://corpora.tika.apache.org/base/docs/govdocs1/998/998719.pdf",
+            "https://github.com/user-attachments/files/18381775/tika-998719.pdf",
             "tika-998719.pdf",
             "",
         ),
         (  # read_inline_image_loc_neg_1
-            "https://corpora.tika.apache.org/base/docs/govdocs1/935/935066.pdf",
+            "https://github.com/user-attachments/files/18381706/tika-935066.pdf",
             "tika-935066.pdf",
             "",
         ),
         (  # object_read_from_stream_unicode_error
-            "https://corpora.tika.apache.org/base/docs/govdocs1/974/974966.pdf",
+            "https://github.com/user-attachments/files/18381750/tika-974966.pdf",
             "tika-974966.pdf",
             "",
         ),
         (  # dict_read_from_stream
-            "https://corpora.tika.apache.org/base/docs/govdocs1/984/984877.pdf",
+            "https://github.com/user-attachments/files/18381762/tika-984877.pdf",
             "tika-984877.pdf",
             "Multiple definitions in dictionary at byte 0x1084 for key /Length",
         ),
@@ -666,10 +680,10 @@ def test_extract_text(caplog, url: str, name: str, caplog_content: str):
         assert caplog_content in caplog.text
 
 
-@pytest.mark.slow()
-@pytest.mark.enable_socket()
+@pytest.mark.slow
+@pytest.mark.enable_socket
 def test_text_string_write_to_stream():
-    url = "https://corpora.tika.apache.org/base/docs/govdocs1/924/924562.pdf"
+    url = "https://github.com/user-attachments/files/18381698/tika-924562.pdf"
     name = "tika-924562.pdf"
 
     reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
@@ -679,9 +693,9 @@ def test_text_string_write_to_stream():
         page.compress_content_streams()
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_bool_repr(tmp_path):
-    url = "https://corpora.tika.apache.org/base/docs/govdocs1/932/932449.pdf"
+    url = "https://github.com/user-attachments/files/18381703/tika-932449.pdf"
     name = "tika-932449.pdf"
 
     reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
@@ -699,7 +713,7 @@ def test_bool_repr(tmp_path):
     )
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_issue_997(pdf_file_path):
     url = (
         "https://github.com/py-pdf/pypdf/files/8908874/"
@@ -880,10 +894,10 @@ def test_cloning(caplog):
     assert isinstance(obj21.get("/Test2"), IndirectObject)
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_append_with_indirectobject_not_pointing(caplog):
     """
-    reported in #1631
+    Reported in #1631
     the object 43 0 is not invalid
     """
     url = "https://github.com/py-pdf/pypdf/files/10729142/document.pdf"
@@ -895,10 +909,10 @@ def test_append_with_indirectobject_not_pointing(caplog):
     assert "Object 43 0 not defined." in caplog.text
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_iss1615_1673():
     """
-    test cases where /N is not indicating chains of objects
+    Test cases where /N is not indicating chains of objects
     test also where /N,... are not part of chains
     """
     # #1615
@@ -921,7 +935,7 @@ def test_iss1615_1673():
     writer.clone_document_from_reader(reader)
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_destination_withoutzoom():
     """Cf issue #1832"""
     url = "https://github.com/user-attachments/files/15605648/2021_book_security.pdf"
@@ -972,7 +986,7 @@ def test_encodedstream_set_data():
         aa.set_data(b"toto")
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_set_data_2():
     """
     Modify a stream not yet loaded and
@@ -988,7 +1002,7 @@ def test_set_data_2():
     assert writer.root_object["/AcroForm"]["/XFA"][7].get_object().get_data() == b"test"
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_calling_indirect_objects():
     """Cope with cases where attributes/items are called from indirectObject"""
     url = "https://github.com/user-attachments/files/15605648/2021_book_security.pdf"
@@ -1008,7 +1022,7 @@ def test_calling_indirect_objects():
         ind["/Type"]
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_indirect_object_page_dimensions():
     url = "https://github.com/py-pdf/pypdf/files/13302338/Zymeworks_Corporate.Presentation_FINAL1101.pdf.pdf"
     name = "issue2287.pdf"
@@ -1195,3 +1209,13 @@ def test_coverage_streamobject():
     co[NameObject("/testkey")] = NameObject("/test")
     co.decoded_self = DecodedStreamObject()
     assert "/testkey" in co.replicate(writer)
+
+
+def test_contentstream_arrayobject_containing_nullobject(caplog):
+    stream_object = DecodedStreamObject()
+    stream_object.set_data(b"Hello World!")
+
+    input_stream = ArrayObject([NullObject(), stream_object])
+    content_stream = ContentStream(stream=input_stream, pdf=None)
+    assert content_stream.get_data() == b"Hello World!\n"
+    assert caplog.text == ""

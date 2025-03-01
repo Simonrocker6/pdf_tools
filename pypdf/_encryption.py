@@ -72,7 +72,7 @@ class CryptFilter:
         if isinstance(obj, ByteStringObject):
             data = self.str_crypt.encrypt(obj.original_bytes)
             obj = ByteStringObject(data)
-        if isinstance(obj, TextStringObject):
+        elif isinstance(obj, TextStringObject):
             data = self.str_crypt.encrypt(obj.get_encoded_bytes())
             obj = ByteStringObject(data)
         elif isinstance(obj, StreamObject):
@@ -188,6 +188,7 @@ class AlgV4:
 
         Returns:
             The u_hash digest of length key_size
+
         """
         a = _padding(password)
         u_hash = hashlib.md5(a)
@@ -243,6 +244,7 @@ class AlgV4:
 
         Returns:
             The RC4 key
+
         """
         a = _padding(owner_password)
         o_hash_digest = hashlib.md5(a).digest()
@@ -266,12 +268,13 @@ class AlgV4:
 
         Returns:
             The RC4 encrypted
+
         """
         a = _padding(user_password)
         rc4_enc = rc4_encrypt(rc4_key, a)
         if rev >= 3:
             for i in range(1, 20):
-                key = bytes(bytearray(x ^ i for x in rc4_key))
+                key = bytes(x ^ i for x in rc4_key)
                 rc4_enc = rc4_encrypt(key, rc4_enc)
         return rc4_enc
 
@@ -297,6 +300,7 @@ class AlgV4:
 
         Returns:
             The value
+
         """
         if rev <= 2:
             value = rc4_encrypt(key, _PADDING)
@@ -331,7 +335,7 @@ class AlgV4:
         u_hash.update(id1_entry)
         rc4_enc = rc4_encrypt(key, u_hash.digest())
         for i in range(1, 20):
-            rc4_key = bytes(bytearray(x ^ i for x in key))
+            rc4_key = bytes(x ^ i for x in key)
             rc4_enc = rc4_encrypt(rc4_key, rc4_enc)
         return _padding(rc4_enc)
 
@@ -381,6 +385,7 @@ class AlgV4:
 
         Returns:
             The key
+
         """
         key = AlgV4.compute_key(
             user_password, rev, key_size, o_entry, P, id1_entry, metadata_encrypted
@@ -443,6 +448,7 @@ class AlgV4:
 
         Returns:
             bytes
+
         """
         rc4_key = AlgV4.compute_O_value_key(owner_password, rev, key_size)
 
@@ -451,7 +457,7 @@ class AlgV4:
         else:
             user_password = o_entry
             for i in range(19, -1, -1):
-                key = bytes(bytearray(x ^ i for x in rc4_key))
+                key = bytes(x ^ i for x in rc4_key)
                 user_password = rc4_decrypt(key, user_password)
         return AlgV4.verify_user_password(
             user_password,
@@ -526,6 +532,7 @@ class AlgV5:
 
         Returns:
             The key
+
         """
         password = password[:127]
         if (
@@ -556,6 +563,7 @@ class AlgV5:
 
         Returns:
             bytes
+
         """
         password = password[:127]
         if AlgV5.calculate_hash(R, password, u_value[32:40], b"") != u_value[:32]:
@@ -566,7 +574,7 @@ class AlgV5:
 
     @staticmethod
     def calculate_hash(R: int, password: bytes, salt: bytes, udata: bytes) -> bytes:
-        # from https://github.com/qpdf/qpdf/blob/main/libqpdf/QPDF_encryption.cc
+        # https://github.com/qpdf/qpdf/blob/main/libqpdf/QPDF_encryption.cc
         k = hashlib.sha256(password + salt + udata).digest()
         if R < 6:
             return k
@@ -605,6 +613,7 @@ class AlgV5:
 
         Returns:
             A boolean
+
         """
         b8 = b"T" if metadata_encrypted else b"F"
         p1 = struct.pack("<I", p) + b"\xff\xff\xff\xff" + b8 + b"adb"
@@ -658,6 +667,7 @@ class AlgV5:
 
         Returns:
             A tuple (u-value, ue value)
+
         """
         random_bytes = secrets.token_bytes(16)
         val_salt = random_bytes[:8]
@@ -702,6 +712,7 @@ class AlgV5:
 
         Returns:
             A tuple (O value, OE value)
+
         """
         random_bytes = secrets.token_bytes(16)
         val_salt = random_bytes[:8]
@@ -745,6 +756,7 @@ class AlgV5:
 
         Returns:
             The perms value
+
         """
         b8 = b"T" if metadata_encrypted else b"F"
         rr = secrets.token_bytes(4)
@@ -769,7 +781,7 @@ class EncryptAlgorithm(tuple, Enum):  # type: ignore # noqa: SLOT001
 
 
 class EncryptionValues:
-    O: bytes  # noqa
+    O: bytes  # noqa: E741
     U: bytes
     OE: bytes
     UE: bytes
@@ -798,6 +810,7 @@ class Encryption:
              encrypting embedded file streams that do not have their own
              crypt filter specifier.
         values: Additional encryption parameters.
+
     """
 
     def __init__(
@@ -911,6 +924,7 @@ class Encryption:
         key_data = key[:n] + pack1 + pack2
         key_hash = hashlib.md5(key_data)
         rc4_key = key_hash.digest()[: min(n + 5, 16)]
+
         # for AES-128
         key_hash.update(b"sAlT")
         aes128_key = key_hash.digest()[: min(n + 5, 16)]
@@ -928,14 +942,14 @@ class Encryption:
     def _get_crypt(
         method: str, rc4_key: bytes, aes128_key: bytes, aes256_key: bytes
     ) -> CryptBase:
-        if method == "/AESV3":
-            return CryptAES(aes256_key)
         if method == "/AESV2":
             return CryptAES(aes128_key)
-        elif method == "/Identity":
+        if method == "/AESV3":
+            return CryptAES(aes256_key)
+        if method == "/Identity":
             return CryptIdentity()
-        else:
-            return CryptRC4(rc4_key)
+
+        return CryptRC4(rc4_key)
 
     @staticmethod
     def _encode_password(password: Union[bytes, str]) -> bytes:

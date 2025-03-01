@@ -19,7 +19,7 @@ capable of splitting, merging, cropping, and transforming the pages of PDF files
   request, but that is up to the maintainer. Other contributors describe issues,
   help to ask questions on existing issues to make them easier to answer,
   participate in discussions, and help to improve the documentation. Contributors
-  are similar to maintainers, but without technial permissions.
+  are similar to maintainers, but without technical permissions.
 * A **user** is a person who imports pypdf into their code. All pypdf users
   are developers, but not developers who know the internals of pypdf. They only
   use the public interface of pypdf. They will likely have less knowledge about
@@ -111,7 +111,7 @@ An issue is any technical description that aims at bringing pypdf forward:
 * Performance tickets: pypdf could be faster - let us know about your specific
   scenario.
 
-Any comment that is in those technial descriptions which is not helping the
+Any comment that is in those technical descriptions which is not helping the
 discussion can be deleted. This is especially true for "me too" comments on bugs
 or "bump" comments for desired features. People can express this with 👍 / 👎
 reactions.
@@ -133,7 +133,9 @@ maintainers do their best to fix that in a timely manner - please
 
 ## People
 
-* Martin Thoma is benevolent dictator since April 2022.
+* [stefan6419846](https://github.com/stefan6419846) is the benevolent dictator since January 2025
+* [Martin Thoma](https://github.com/MartinThoma) was the benevolent dictator from April 2022 to January 2025.
+  He still has most of the permissions as a fallback.
 * Maintainers:
     * Matthew Stamy (mstamy2) was the benevolent dictator for a long time.
       He still is around on GitHub once in a while and has permissions on PyPI and GitHub.

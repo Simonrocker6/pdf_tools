@@ -8,13 +8,14 @@ and/or the actual image data with the expected value.
 from io import BytesIO
 from pathlib import Path
 from typing import Union
+from unittest import mock
 from zipfile import ZipFile
 
 import pytest
 from PIL import Image, ImageChops, ImageDraw
 
 from pypdf import PageObject, PdfReader, PdfWriter
-from pypdf.generic import NameObject, NullObject
+from pypdf.generic import ContentStream, NameObject, NullObject
 
 from . import get_data_from_url
 
@@ -74,21 +75,21 @@ def image_similarity(
     return 1 - mse
 
 
-@pytest.mark.samples()
+@pytest.mark.samples
 def test_image_similarity_one():
     path_a = SAMPLE_ROOT / "018-base64-image/page-0-QuickPDFImd32aa1ab.png"
     path_b = path_a
     assert image_similarity(path_a, path_b) == 1
 
 
-@pytest.mark.samples()
+@pytest.mark.samples
 def test_image_similarity_zero():
     path_a = SAMPLE_ROOT / "018-base64-image/page-0-QuickPDFImd32aa1ab.png"
     path_b = SAMPLE_ROOT / "009-pdflatex-geotopo/page-23-Im2.png"
     assert image_similarity(path_a, path_b) == 0
 
 
-@pytest.mark.samples()
+@pytest.mark.samples
 def test_image_similarity_mid():
     path_a = SAMPLE_ROOT / "018-base64-image/page-0-QuickPDFImd32aa1ab.png"
     img_b = Image.open(path_a)
@@ -107,7 +108,7 @@ def test_image_similarity_mid():
     assert sim2 > 0
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_image_new_property():
     name = "pdf_font_garbled.pdf"
     reader = PdfReader(BytesIO(get_data_from_url(name=name)))
@@ -203,7 +204,7 @@ def test_image_new_property():
         "019-grayscale-image/page-0-X0.png",
     ],
 )
-@pytest.mark.samples()
+@pytest.mark.samples
 def test_image_extraction(src, page_index, image_key, expected):
     reader = PdfReader(src)
     actual_image = reader.pages[page_index].images[image_key]
@@ -214,7 +215,7 @@ def test_image_extraction(src, page_index, image_key, expected):
     assert image_similarity(BytesIO(actual_image.data), expected) >= 0.99
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 @pytest.mark.timeout(30)
 def test_loop_in_image_keys():
     """Cf #2077"""
@@ -223,7 +224,7 @@ def test_loop_in_image_keys():
     reader.pages[0].images.keys()
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_devicen_cmyk_black_only():
     """Cf #2321"""
     url = "https://github.com/py-pdf/pypdf/files/13501846/Addressing_Adversarial_Attacks.pdf"
@@ -239,7 +240,7 @@ def test_devicen_cmyk_black_only():
     assert image_similarity(reader.pages[10].images[0].image, img) >= 0.99
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_bi_in_text():
     """Cf #2456"""
     url = "https://github.com/py-pdf/pypdf/files/14322910/BI_text_with_one_image.pdf"
@@ -249,7 +250,7 @@ def test_bi_in_text():
     assert reader.pages[0].images[0].name == "~0~.png"
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_cmyk_no_filter():
     """Cf #2522"""
     url = "https://github.com/py-pdf/pypdf/files/14614887/out3.pdf"
@@ -258,7 +259,7 @@ def test_cmyk_no_filter():
     reader.pages[0].images[0].image
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_separation_1byte_to_rgb_inverted():
     """Cf #2343"""
     url = "https://github.com/py-pdf/pypdf/files/13679585/test2_P038-038.pdf"
@@ -274,7 +275,7 @@ def test_separation_1byte_to_rgb_inverted():
         reader.pages[0].images[0]
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_data_with_lf():
     """Cf #2343"""
     url = "https://github.com/py-pdf/pypdf/files/13946477/panda.pdf"
@@ -286,7 +287,7 @@ def test_data_with_lf():
     assert image_similarity(reader.pages[8].images[9].image, img) == 1.0
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_oserror():
     """Cf #2265"""
     url = "https://github.com/py-pdf/pypdf/files/13127130/Binance.discovery.responses.2.gov.uscourts.dcd.256060.140.1.pdf"
@@ -316,7 +317,7 @@ def test_oserror():
         ),
     ],
 )
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_corrupted_jpeg_iss2266(pdf, pdf_name, images, images_name, filtr):
     """
     Code to create zipfile:
@@ -348,7 +349,7 @@ def test_corrupted_jpeg_iss2266(pdf, pdf_name, images, images_name, filtr):
             assert image_similarity(reader.pages[p].images[i].image, img) >= 0.99
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 @pytest.mark.timeout(30)
 def test_large_compressed_image():
     url = "https://github.com/py-pdf/pypdf/files/15306199/file_with_large_compressed_image.pdf"
@@ -358,7 +359,7 @@ def test_large_compressed_image():
     list(reader.pages[0].images)
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_ff_fe_starting_lut():
     """Cf issue #2660"""
     url = "https://github.com/py-pdf/pypdf/files/15385628/original_before_merge.pdf"
@@ -374,7 +375,7 @@ def test_ff_fe_starting_lut():
     assert image_similarity(reader.pages[1].images[0].image, img) == 1.0
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_inline_image_extraction():
     """Cf #2598"""
     url = "https://github.com/py-pdf/pypdf/files/14982414/lebo102.pdf"
@@ -443,7 +444,7 @@ def test_inline_image_extraction():
     assert image_similarity(reader.pages[0].images[0].image, img) == 1
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_extract_image_from_object(caplog):
     url = "https://github.com/py-pdf/pypdf/files/15176076/B2.pdf"
     name = "iss2613.pdf"
@@ -464,7 +465,7 @@ def test_extract_image_from_object(caplog):
     assert "does not seem to be an Image" in caplog.text
 
 
-@pytest.mark.enable_socket()
+@pytest.mark.enable_socket
 def test_4bits_images(caplog):
     url = "https://github.com/user-attachments/files/16624406/tt.pdf"
     name = "iss2411.pdf"
@@ -473,3 +474,59 @@ def test_4bits_images(caplog):
     name = "iss2411.png"
     img = Image.open(BytesIO(get_data_from_url(url, name=name)))
     assert image_similarity(reader.pages[0].images[1].image, img) == 1.0
+
+
+@pytest.mark.enable_socket
+def test_no_filter_with_colorspace_as_list():
+    """Tests for #2998"""
+    url = "https://github.com/user-attachments/files/18058571/9bf7a2e2-72c8-4ac1-b8ae-164df16c8cef.pdf"
+    name = "iss2998.pdf"
+    reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
+
+    page = reader.pages[0]
+    page.images.items()
+
+
+def test_contentstream__read_inline_image__fallback_is_successful():
+    stream = ContentStream(stream=None, pdf=None)
+    stream.set_data(
+        b"""Q
+q 9.6 0 0 4.8 5523.6 1031 cm
+BI
+/CS /RGB
+/W 2
+/H 1
+/BPC 8
+ID \x8b\x8b\x8b\xfe\xfe\xfe
+EI Q
+/R413 gs
+        """
+    )
+    page = PageObject(pdf=None)
+    with mock.patch.object(page, "get_contents", return_value=stream):
+        images = page._get_inline_images()
+        assert list(images) == ["~0~"]
+        assert images["~0~"].data == (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x02\x00\x00\x00\x01\x08\x02\x00\x00\x00{@\xe8\xdd\x00\x00\x00\x0f"
+            b"IDATx\x9cc\xe8\xee\xee\xfe\xf7\xef\x1f\x00\x0e \x04\x9cpr_\x96\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+
+
+@pytest.mark.enable_socket
+def test_inline_image_containing_ei_in_body():
+    """Tests for #3107"""
+    expected = """\nID ><8d>£^H<8e><8b>¢AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA¡^BêMEI E^N^^<8a>^AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA^D
+<8b>²: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA5>^D
+é^EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD<98>AAAAAA<8d><82>
+AAAAAAAA^B
+EI\nQ\n""".encode("latin1")  # noqa: E501
+    url = "https://github.com/user-attachments/files/18943249/testing.pdf"
+    name = "issue3107.pdf"
+    reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
+    writer = PdfWriter(clone_from=reader)
+    for page in writer.pages:
+        page.transfer_rotation_to_content()
+    output = BytesIO()
+    writer.write(output)
+    assert expected in output.getvalue()

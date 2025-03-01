@@ -86,6 +86,7 @@ class PageRange:
 
         Returns:
             True, if the ``input`` is a valid PageRange.
+
         """
         return isinstance(input, (slice, PageRange)) or (
             isinstance(input, str) and bool(re.match(PAGE_RANGE_RE, input))
@@ -124,6 +125,7 @@ class PageRange:
 
         Returns:
             Arguments for range().
+
         """
         return self._slice.indices(n)
 
@@ -166,9 +168,10 @@ def parse_filename_page_ranges(
 
     Returns:
         A list of (filename, page_range) pairs.
+
     """
     pairs: List[Tuple[str, PageRange]] = []
-    pdf_filename = None
+    pdf_filename: Union[str, None] = None
     did_page_range = False
     for arg in args + [None]:
         if PageRange.valid(arg):
@@ -177,13 +180,15 @@ def parse_filename_page_ranges(
                     "The first argument must be a filename, not a page range."
                 )
 
+            assert arg is not None
             pairs.append((pdf_filename, PageRange(arg)))
             did_page_range = True
         else:
-            # New filename or end of list--do all of the previous file?
+            # New filename or end of list - use the complete previous file?
             if pdf_filename and not did_page_range:
                 pairs.append((pdf_filename, PAGE_RANGE_ALL))
 
+            assert not isinstance(arg, PageRange), arg
             pdf_filename = arg
             did_page_range = False
     return pairs

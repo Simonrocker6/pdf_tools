@@ -46,6 +46,7 @@ def bt_group(tj_op: TextStateParams, rendered_text: str, dispaced_tx: float) -> 
         tj_op (TextStateParams): TextStateParams instance
         rendered_text (str): rendered text
         dispaced_tx (float): x coordinate of last character in BTGroup
+
     """
     return BTGroup(
         tx=tj_op.tx,
@@ -77,6 +78,7 @@ def recurs_to_target_op(
 
     Returns:
         tuple: list of BTGroup dicts + list of TextStateParams dataclass instances.
+
     """
     # 1 entry per line of text rendered within each BT/ET operation.
     bt_groups: List[BTGroup] = []
@@ -107,6 +109,8 @@ def recurs_to_target_op(
                     tj_ops
                 ):  # ... build text from new Tj operators
                     if strip_rotated and _tj.rotated:
+                        continue
+                    if not _tj.font.interpretable:  # generates warning
                         continue
                     # if the y position of the text is greater than the font height, assume
                     # the text is on a new line and start a new group
@@ -210,6 +214,7 @@ def y_coordinate_groups(
     Returns:
         Dict[int, List[BTGroup]]: dict of lists of text rendered by each BT operator
             keyed by y coordinate
+
     """
     ty_groups = {
         ty: sorted(grp, key=lambda x: x["tx"])
@@ -261,6 +266,7 @@ def text_show_operations(
 
     Returns:
         List[BTGroup]: list of dicts of text rendered by each BT operator
+
     """
     state_mgr = TextStateManager()  # transformation stack manager
     debug = bool(debug_path)
@@ -268,6 +274,7 @@ def text_show_operations(
     tj_debug: List[TextStateParams] = []  # Tj/TJ operator data (debug only)
     try:
         warned_rotation = False
+        warned_uninterpretable_font = False
         while True:
             operands, op = next(ops)
             if op in (b"BT", b"q"):
@@ -286,9 +293,17 @@ def text_show_operations(
                             "Rotated text discovered. Layout will be degraded.",
                             __name__,
                         )
+                if not warned_uninterpretable_font and any(not tj.font.interpretable for tj in tjs):
+                    warned_uninterpretable_font = True
+                    logger_warning(
+                        "PDF contains an uninterpretable font. Output will be incomplete.",
+                        __name__,
+                    )
                 bt_groups.extend(bts)
                 if debug:  # pragma: no cover
                     tj_debug.extend(tjs)
+            elif op == b"Tf":
+                state_mgr.set_font(fonts[operands[0]], operands[1])
             else:  # set Tc, Tw, Tz, TL, and Ts if required. ignores all other ops
                 state_mgr.set_state_param(op, operands)
     except StopIteration:
@@ -329,6 +344,7 @@ def fixed_char_width(bt_groups: List[BTGroup], scale_weight: float = 1.25) -> fl
 
     Returns:
         float: fixed character width
+
     """
     char_widths = []
     for _bt in bt_groups:
@@ -338,7 +354,7 @@ def fixed_char_width(bt_groups: List[BTGroup], scale_weight: float = 1.25) -> fl
 
 
 def fixed_width_page(
-    ty_groups: Dict[int, List[BTGroup]], char_width: float, space_vertically: bool
+    ty_groups: Dict[int, List[BTGroup]], char_width: float, space_vertically: bool, font_height_weight: float
 ) -> str:
     """
     Generate page text from text operations grouped by rendered y coordinate.
@@ -347,17 +363,20 @@ def fixed_width_page(
         ty_groups: dict of text show ops as returned by y_coordinate_groups()
         char_width: fixed character width
         space_vertically: include blank lines inferred from y distance + font height.
+        font_height_weight: multiplier for font height when calculating blank lines.
 
     Returns:
         str: page text in a fixed width format that closely adheres to the rendered
             layout in the source pdf.
+
     """
     lines: List[str] = []
     last_y_coord = 0
     for y_coord, line_data in ty_groups.items():
         if space_vertically and lines:
-            blank_lines = (
-                int(abs(y_coord - last_y_coord) / line_data[0]["font_height"]) - 1
+            fh = line_data[0]["font_height"]
+            blank_lines = 0 if fh == 0 else (
+                int(abs(y_coord - last_y_coord) / (fh * font_height_weight)) - 1
             )
             lines.extend([""] * blank_lines)
         line = ""

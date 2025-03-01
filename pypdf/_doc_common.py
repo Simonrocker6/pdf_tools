@@ -35,6 +35,7 @@ from datetime import datetime
 from typing import (
     Any,
     Dict,
+    Generator,
     Iterable,
     Iterator,
     List,
@@ -87,13 +88,14 @@ from .generic import (
     create_string_object,
     is_null_or_none,
 )
+from .generic._files import EmbeddedFile
 from .types import OutlineType, PagemodeType
 from .xmp import XmpInformation
 
 
 def convert_to_int(d: bytes, size: int) -> Union[int, Tuple[Any, ...]]:
     if size > 8:
-        raise PdfReadError("invalid size in convert_to_int")
+        raise PdfReadError("Invalid size in convert_to_int")
     d = b"\x00\x00\x00\x00\x00\x00\x00\x00" + d
     d = d[-8:]
     return struct.unpack(">q", d)[0]
@@ -121,6 +123,8 @@ class DocumentInformation(DictionaryObject):
         retval = self.get(key, None)
         if isinstance(retval, TextStringObject):
             return retval
+        if isinstance(retval, ByteStringObject):
+            return str(retval)
         return None
 
     @property
@@ -241,6 +245,21 @@ class DocumentInformation(DictionaryObject):
         """
         return self.get(DI.MOD_DATE)
 
+    @property
+    def keywords(self) -> Optional[str]:
+        """
+        Read-only property accessing the document's keywords.
+
+        Returns a ``TextStringObject`` or ``None`` if keywords are not
+        specified.
+        """
+        return self._get_text(DI.KEYWORDS)
+
+    @property
+    def keywords_raw(self) -> Optional[str]:
+        """The "raw" version of keywords; can return a ``ByteStringObject``."""
+        return self.get(DI.KEYWORDS)
+
 
 class PdfDocCommon:
     """
@@ -299,22 +318,6 @@ class PdfDocCommon:
     def xmp_metadata(self) -> Optional[XmpInformation]:
         ...  # pragma: no cover
 
-    @abstractmethod
-    def _repr_mimebundle_(
-        self,
-        include: Union[None, Iterable[str]] = None,
-        exclude: Union[None, Iterable[str]] = None,
-    ) -> Dict[str, Any]:
-        """
-        Integration into Jupyter Notebooks.
-
-        This method returns a dictionary that maps a mime-type to its
-        representation.
-
-        See https://ipython.readthedocs.io/en/stable/config/integrating.html
-        """
-        ...  # pragma: no cover
-
     @property
     def viewer_preferences(self) -> Optional[ViewerPreferences]:
         """Returns the existing ViewerPreferences as an overloaded dictionary."""
@@ -342,6 +345,7 @@ class PdfDocCommon:
         Raises:
             PdfReadError: if file is encrypted and restrictions prevent
                 this action.
+
         """
         # Flattened pages will not work on an encrypted PDF;
         # the PDF file's page count is used in this case. Otherwise,
@@ -365,6 +369,7 @@ class PdfDocCommon:
 
         Returns:
             A :class:`PageObject<pypdf._page.PageObject>` instance.
+
         """
         if self.flattened_pages is None:
             self._flatten(self._readonly)
@@ -468,6 +473,7 @@ class PdfDocCommon:
         Returns:
             A dictionary which maps names to
             :class:`Destinations<pypdf.generic.Destination>`.
+
         """
         if retval is None:
             retval = {}
@@ -550,6 +556,7 @@ class PdfDocCommon:
             value is a :class:`Field<pypdf.generic.Field>` object. By
             default, the mapping name is used for keys.
             ``None`` if form data could not be located.
+
         """
         field_attributes = FA.attributes_dict()
         field_attributes.update(CheckboxRadioButtonAttributes.attributes_dict())
@@ -700,6 +707,7 @@ class PdfDocCommon:
 
             If the document contains multiple form fields with the same name, the
             second and following will get the suffix .2, .3, ...
+
         """
 
         def indexed_key(k: str, fields: Dict[Any, Any]) -> str:
@@ -709,7 +717,7 @@ class PdfDocCommon:
                 return (
                     k
                     + "."
-                    + str(sum([1 for kk in fields if kk.startswith(k + ".")]) + 2)
+                    + str(sum(1 for kk in fields if kk.startswith(k + ".")) + 2)
                 )
 
         # Retrieve document form fields
@@ -745,6 +753,7 @@ class PdfDocCommon:
                 - Multi-page list:
                     Field with multiple kids widgets
                     (example: radio buttons, field repeated on multiple pages).
+
         """
 
         def _get_inherited(obj: DictionaryObject, key: str) -> Any:
@@ -761,9 +770,9 @@ class PdfDocCommon:
             # to cope with all types
             field = cast(DictionaryObject, field.indirect_reference.get_object())  # type: ignore
         except Exception as exc:
-            raise ValueError("field type is invalid") from exc
+            raise ValueError("Field type is invalid") from exc
         if is_null_or_none(_get_inherited(field, "/FT")):
-            raise ValueError("field is not valid")
+            raise ValueError("Field is not valid")
         ret = []
         if field.get("/Subtype", "") == "/Widget":
             if "/P" in field:
@@ -806,6 +815,7 @@ class PdfDocCommon:
 
         Raises:
             Exception: If a destination is invalid.
+
         """
         if "/OpenAction" not in self.root_object:
             return None
@@ -816,8 +826,7 @@ class PdfDocCommon:
             return create_string_object(oa)
         elif isinstance(oa, ArrayObject):
             try:
-                page, typ = oa[0:2]
-                array = oa[2:]
+                page, typ, *array = oa
                 fit = Fit(typ, tuple(array))
                 return Destination("OpenAction", page, fit)
             except Exception as exc:
@@ -827,7 +836,7 @@ class PdfDocCommon:
 
     @open_destination.setter
     def open_destination(self, dest: Union[None, str, Destination, PageObject]) -> None:
-        raise NotImplementedError("no setter for open_destination")
+        raise NotImplementedError("No setter for open_destination")
 
     @property
     def outline(self) -> OutlineType:
@@ -917,6 +926,7 @@ class PdfDocCommon:
 
         Returns:
             The page number or None if page is not found
+
         """
         return self._get_page_number_by_indirect(page.indirect_reference)
 
@@ -929,6 +939,7 @@ class PdfDocCommon:
 
         Returns:
             The page number or None if page is not found
+
         """
         return self._get_page_number_by_indirect(destination.page)
 
@@ -951,8 +962,7 @@ class PdfDocCommon:
             page = NullObject()
             return Destination(title, page, Fit.fit())
         else:
-            page, typ = array[0:2]  # type: ignore
-            array = array[2:]
+            page, typ, *array = array  # type: ignore
             try:
                 return Destination(title, page, Fit(fit_type=typ, fit_args=array))  # type: ignore
             except PdfReadError:
@@ -962,7 +972,7 @@ class PdfDocCommon:
                 # create a link to first Page
                 tmp = self.pages[0].indirect_reference
                 indirect_reference = NullObject() if tmp is None else tmp
-                return Destination(title, indirect_reference, Fit.fit())  # type: ignore
+                return Destination(title, indirect_reference, Fit.fit())
 
     def _build_outline_item(self, node: DictionaryObject) -> Optional[Destination]:
         dest, title, outline_item = None, None, None
@@ -1135,6 +1145,7 @@ class PdfDocCommon:
             pages:
             inherit:
             indirect_reference: Used recursively to flatten the /Pages object.
+
         """
         inheritable_page_attributes = (
             NameObject(PG.RESOURCES),
@@ -1208,6 +1219,7 @@ class PdfDocCommon:
 
             clean: replace PageObject with NullObject to prevent annotations
                 or destinations to reference a detached page.
+
         """
         if self.flattened_pages is None:
             self._flatten(self._readonly)
@@ -1246,6 +1258,7 @@ class PdfDocCommon:
 
         Returns:
             A PdfObject
+
         """
         return IndirectObject(num, gen, self).get_object()
 
@@ -1320,6 +1333,7 @@ class PdfDocCommon:
 
     @property
     def attachments(self) -> Mapping[str, List[bytes]]:
+        """Mapping of attachment filenames to their content."""
         return LazyDict(
             {
                 name: (self._get_attachment_list, name)
@@ -1327,27 +1341,25 @@ class PdfDocCommon:
             }
         )
 
+    @property
+    def attachment_list(self) -> Generator[EmbeddedFile, None, None]:
+        """Iterable of attachment objects."""
+        yield from EmbeddedFile._load(self.root_object)
+
     def _list_attachments(self) -> List[str]:
         """
         Retrieves the list of filenames of file attachments.
 
         Returns:
             list of filenames
+
         """
-        catalog = self.root_object
-        # From the catalog get the embedded file names
-        try:
-            filenames = cast(
-                ArrayObject,
-                cast(
-                    DictionaryObject,
-                    cast(DictionaryObject, catalog["/Names"])["/EmbeddedFiles"],
-                )["/Names"],
-            )
-        except KeyError:
-            return []
-        attachments_names = [f for f in filenames if isinstance(f, str)]
-        return attachments_names
+        names = []
+        for entry in self.attachment_list:
+            names.append(entry.name)
+            if (name := entry.alternative_name) != entry.name and name:
+                names.append(name)
+        return names
 
     def _get_attachment_list(self, name: str) -> List[bytes]:
         out = self._get_attachments(name)[name]
@@ -1371,36 +1383,49 @@ class PdfDocCommon:
         Returns:
             dictionary of filename -> Union[bytestring or List[ByteString]]
             If the filename exists multiple times a list of the different versions will be provided.
+
         """
-        catalog = self.root_object
-        # From the catalog get the embedded file names
-        try:
-            filenames = cast(
-                ArrayObject,
-                cast(
-                    DictionaryObject,
-                    cast(DictionaryObject, catalog["/Names"])["/EmbeddedFiles"],
-                )["/Names"],
-            )
-        except KeyError:
-            return {}
         attachments: Dict[str, Union[bytes, List[bytes]]] = {}
-        # Loop through attachments
-        for i in range(len(filenames)):
-            f = filenames[i]
-            if isinstance(f, str):
-                if filename is not None and f != filename:
+        for entry in self.attachment_list:
+            names = set()
+            alternative_name = entry.alternative_name
+            if filename is not None:
+                if filename in {entry.name, alternative_name}:
+                    name = entry.name if filename == entry.name else alternative_name
+                    names.add(name)
+                else:
                     continue
-                name = f
-                f_dict = filenames[i + 1].get_object()
-                f_data = f_dict["/EF"]["/F"].get_data()
+            else:
+                names = {entry.name, alternative_name}
+
+            for name in names:
+                if name is None:
+                    continue
                 if name in attachments:
                     if not isinstance(attachments[name], list):
                         attachments[name] = [attachments[name]]  # type:ignore
-                    attachments[name].append(f_data)  # type:ignore
+                    attachments[name].append(entry.content)  # type:ignore
                 else:
-                    attachments[name] = f_data
+                    attachments[name] = entry.content
         return attachments
+
+    @abstractmethod
+    def _repr_mimebundle_(
+        self,
+        include: Union[None, Iterable[str]] = None,
+        exclude: Union[None, Iterable[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Integration into Jupyter Notebooks.
+
+        This method returns a dictionary that maps a mime-type to its
+        representation.
+
+        .. seealso::
+
+            https://ipython.readthedocs.io/en/stable/config/integrating.html
+        """
+        ...  # pragma: no cover
 
 
 class LazyDict(Mapping[Any, Any]):
