@@ -7,7 +7,7 @@ from openai import OpenAI
 import threading
 
 client = OpenAI(
-    api_key="sk-ea5f0574fd0c4dbd8ddb9e5069207ac5",
+    api_key="sk-ea5",
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
 )
 
