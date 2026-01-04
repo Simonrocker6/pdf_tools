@@ -1,0 +1,267 @@
+[
+  {
+    "user_profile": {
+      "age": "40",
+      "base_condition": "冠心病",
+      "current_medication": "盐酸贝尼地平片（钙通道阻滞剂）",
+      "medication_adherence": "规律服药",
+      "diet": "低脂低盐饮食",
+      "exercise": "每日散步30分钟",
+      "smoking": "已戒烟2年",
+      "sleep": "良好",
+      "pfo_status": "未提及",
+      "symptom_hand_numbness": "无"
+    },
+    "recent_bp_records": [
+      {
+        "systolic": 132,
+        "diastolic": 82,
+        "heart_rate": 72,
+        "status": "临界",
+        "timestamp": "2025-12-28T08:00:00Z"
+      },
+      {
+        "systolic": 130,
+        "diastolic": 80,
+        "heart_rate": 70,
+        "status": "临界",
+        "timestamp": "2025-12-21T08:00:00Z"
+      }
+    ],
+    "current_med_plan": [
+      {
+        "drug_name": "盐酸贝尼地平片",
+        "class": "钙通道阻滞剂",
+        "dosage": "4mg",
+        "frequency": "每日一次",
+        "start_date": "2025-10-01"
+      }
+    ],
+    "recent_med_logs": [
+      { "date": "2025-12-28", "taken": true },
+      { "date": "2025-12-27", "taken": true },
+      { "date": "2025-12-26", "taken": true },
+      { "date": "2025-12-25", "taken": true },
+      { "date": "2025-12-24", "taken": true }
+    ]
+  },
+  {
+    "user_profile": {
+      "age": "40",
+      "base_condition": "冠心病",
+      "current_medication": "盐酸贝尼地平片（钙通道阻滞剂）",
+      "medication_adherence": "基本规律",
+      "diet": "偶尔饮酒",
+      "exercise": "较少运动",
+      "smoking": "不吸烟",
+      "sleep": "偶有失眠",
+      "pfo_status": "未提及",
+      "symptom_hand_numbness": "无"
+    },
+    "recent_bp_records": [
+      {
+        "systolic": 142,
+        "diastolic": 88,
+        "heart_rate": 78,
+        "status": "中度偏高",
+        "timestamp": "2025-12-28T09:00:00Z"
+      },
+      {
+        "systolic": 150,
+        "diastolic": 92,
+        "heart_rate": 80,
+        "status": "重度偏高",
+        "timestamp": "2025-12-22T09:00:00Z"
+      }
+    ],
+    "current_med_plan": [
+      {
+        "drug_name": "盐酸贝尼地平片",
+        "class": "钙通道阻滞剂",
+        "dosage": "4mg",
+        "frequency": "每日一次",
+        "start_date": "2025-11-15"
+      }
+    ],
+    "recent_med_logs": [
+      { "date": "2025-12-28", "taken": true },
+      { "date": "2025-12-27", "taken": false },
+      { "date": "2025-12-26", "taken": true },
+      { "date": "2025-12-25", "taken": true },
+      { "date": "2025-12-24", "taken": false }
+    ]
+  },
+  {
+    "user_profile": {
+      "age": "45",
+      "base_condition": "高脂血症",
+      "current_medication": "阿托伐他汀（HMG-CoA还原酶抑制剂）",
+      "medication_adherence": "规律服药",
+      "diet": "控制油脂摄入",
+      "exercise": "每周3次快走",
+      "smoking": "不吸烟",
+      "sleep": "良好",
+      "pfo_status": "未提及",
+      "symptom_hand_numbness": "无"
+    },
+    "recent_bp_records": [
+      {
+        "systolic": 128,
+        "diastolic": 78,
+        "heart_rate": 75,
+        "status": "达标",
+        "timestamp": "2025-12-28T07:30:00Z"
+      }
+    ],
+    "current_med_plan": [
+      {
+        "drug_name": "阿托伐他汀",
+        "class": "他汀类降脂药",
+        "dosage": "20mg",
+        "frequency": "每晚一次",
+        "start_date": "2025-09-01"
+      }
+    ],
+    "recent_med_logs": [
+      { "date": "2025-12-28", "taken": true },
+      { "date": "2025-12-27", "taken": true },
+      { "date": "2025-12-26", "taken": true },
+      { "date": "2025-12-25", "taken": true },
+      { "date": "2025-12-24", "taken": true }
+    ],
+    "side_effects": ["偶有肌肉酸痛"]
+  },
+  {
+    "user_profile": {
+      "age": "45",
+      "base_condition": "高脂血症",
+      "current_medication": "阿托伐他汀（HMG-CoA还原酶抑制剂）",
+      "medication_adherence": "偶有漏服",
+      "diet": "饮食不规律",
+      "exercise": "久坐",
+      "smoking": "不吸烟",
+      "sleep": "一般",
+      "pfo_status": "未提及",
+      "symptom_hand_numbness": "无"
+    },
+    "recent_bp_records": [
+      {
+        "systolic": 148,
+        "diastolic": 90,
+        "heart_rate": 82,
+        "status": "中度偏高",
+        "timestamp": "2025-12-28T10:00:00Z"
+      },
+      {
+        "systolic": 145,
+        "diastolic": 88,
+        "heart_rate": 80,
+        "status": "中度偏高",
+        "timestamp": "2025-12-25T10:00:00Z"
+      }
+    ],
+    "current_med_plan": [
+      {
+        "drug_name": "阿托伐他汀",
+        "class": "他汀类降脂药",
+        "dosage": "20mg",
+        "frequency": "每晚一次",
+        "start_date": "2025-08-10"
+      }
+    ],
+    "recent_med_logs": [
+      { "date": "2025-12-28", "taken": true },
+      { "date": "2025-12-27", "taken": false },
+      { "date": "2025-12-26", "taken": false },
+      { "date": "2025-12-25", "taken": true },
+      { "date": "2025-12-24", "taken": true }
+    ],
+    "side_effects": ["肌肉无力"]
+  },
+  {
+    "user_profile": {
+      "age": "55",
+      "base_condition": "冠心病",
+      "current_medication": "盐酸贝尼地平片（钙通道阻滞剂）",
+      "medication_adherence": "近期开始规律",
+      "diet": "低盐饮食",
+      "exercise": "轻度活动",
+      "smoking": "既往吸烟，已戒10年",
+      "sleep": "尚可",
+      "pfo_status": "未提及",
+      "symptom_hand_numbness": "无"
+    },
+    "recent_bp_records": [
+      {
+        "systolic": 136,
+        "diastolic": 84,
+        "heart_rate": 70,
+        "status": "临界",
+        "timestamp": "2025-12-28T08:30:00Z"
+      },
+      {
+        "systolic": 152,
+        "diastolic": 94,
+        "heart_rate": 76,
+        "status": "重度偏高",
+        "timestamp": "2025-12-21T08:30:00Z"
+      }
+    ],
+    "current_med_plan": [
+      {
+        "drug_name": "盐酸贝尼地平片",
+        "class": "钙通道阻滞剂",
+        "dosage": "4mg",
+        "frequency": "每日一次",
+        "start_date": "2025-12-15"
+      }
+    ],
+    "recent_med_logs": [
+      { "date": "2025-12-28", "taken": true },
+      { "date": "2025-12-27", "taken": true },
+      { "date": "2025-12-26", "taken": true },
+      { "date": "2025-12-25", "taken": true },
+      { "date": "2025-12-24", "taken": false }
+    ]
+  },
+  {
+    "user_profile": {
+      "age": "45",
+      "base_condition": "高脂血症",
+      "current_medication": "阿托伐他汀（HMG-CoA还原酶抑制剂）",
+      "medication_adherence": "规律但主诉副作用",
+      "diet": "注意饮食",
+      "exercise": "适度",
+      "smoking": "不吸烟",
+      "sleep": "良好",
+      "pfo_status": "未提及",
+      "symptom_hand_numbness": "无"
+    },
+    "recent_bp_records": [
+      {
+        "systolic": 122,
+        "diastolic": 76,
+        "heart_rate": 73,
+        "status": "达标",
+        "timestamp": "2025-12-28T09:15:00Z"
+      }
+    ],
+    "current_med_plan": [
+      {
+        "drug_name": "阿托伐他汀",
+        "class": "他汀类降脂药",
+        "dosage": "20mg",
+        "frequency": "每晚一次",
+        "start_date": "2025-07-01"
+      }
+    ],
+    "recent_med_logs": [
+      { "date": "2025-12-28", "taken": true },
+      { "date": "2025-12-27", "taken": true },
+      { "date": "2025-12-26", "taken": true },
+      { "date": "2025-12-25", "taken": true },
+      { "date": "2025-12-24", "taken": true }
+    ],
+    "side_effects": ["持续肌肉酸痛，考虑换药"]
+  }
+]
